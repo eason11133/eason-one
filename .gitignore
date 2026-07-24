@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+.python*/
+.test-tmp*/
+.test-*/
+python-*.exe
+python-*.zip
+python*-install*.log
+instance/
+.env
+.env.*
+!.env.example

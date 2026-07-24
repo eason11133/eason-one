@@ -1,0 +1,22 @@
+[project]
+name = "eason-one"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = ["Flask>=3.1", "Flask-SQLAlchemy>=3.1", "SQLAlchemy>=2.0", "openai>=2.48.0,<3"]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["eason_one*"]
+exclude = ["instance*", "tests*"]
+
+[tool.setuptools.package-data]
+eason_one = ["templates/*.html", "static/*.css"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
