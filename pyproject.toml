@@ -5,7 +5,7 @@ requires-python = ">=3.13"
 dependencies = ["Flask>=3.1", "Flask-SQLAlchemy>=3.1", "SQLAlchemy>=2.0", "openai>=2.48.0,<3", "anthropic>=0.117.0,<1"]
 
 [project.optional-dependencies]
-test = ["pytest>=8.0"]
+test = ["pytest>=8.0", "pytest-cov>=6.0"]
 
 [build-system]
 requires = ["setuptools>=69"]
