@@ -1,0 +1,45 @@
+{% extends "base.html" %}{% block title %}Command · Eason One{% endblock %}{% block content %}
+<main class="ceo-office">
+  <section class="command-stage">
+    <div class="telemetry-strip"><span><i></i> Eason One</span><span>CEO <b>{{shell.ceo_status|replace('_',' ')}}</b></span></div>
+    <div class="ceo-presence">
+      <div class="ceo-core" aria-label="CEO {{shell.ceo_status|replace('_',' ')}}">
+        <span class="ceo-orbit orbit-outer"></span><span class="ceo-orbit orbit-inner"></span>
+        <div class="ceo-mark"><small>EASON ONE</small><b>CEO</b></div>
+      </div>
+      <div class="command-greeting"><h1>Good evening, Boss.</h1></div>
+    </div>
+
+    <article class="executive-briefing ceo-report">
+      <span class="eyebrow">CEO REPORT</span>
+      {% if snapshot.attention %}<span class="ceo-attention">Needs you · Founder decision required. Company activity requires Founder attention.</span>{% endif %}
+      <h2>{{snapshot.report.headline}}</h2>
+      <p>{{snapshot.report.summary}}</p>
+      <p class="ceo-next"><small>My recommended next move</small>{{snapshot.report.next_move}}</p>
+      {% if snapshot.report.operation %}
+        {% set operation=snapshot.report.operation %}
+        <div class="operation-authority">
+          <span><small>Status</small><b>{{operation.status|replace('_',' ')}}</b></span>
+          <span><small>Maximum internal AI spend</small><b>NT$ {{operation.approved_budget_twd}}</b></span>
+          {% if operation.status=='PLANNED' %}<form method="post" action="/operations/{{operation.id}}/approve"><button>Approve &amp; Run</button></form>
+          {% elif operation.status=='RUNNING' %}<a class="secondary-action" href="/work">Observe operation →</a>
+          {% elif operation.status in ['COMPLETED','WAITING_FOR_FOUNDER','PAUSED'] %}<a class="secondary-action" href="/projects/{{operation.project_id}}">Review result →</a>{% endif %}
+        </div>
+      {% endif %}
+    </article>
+    <!-- Legacy structural contract markers only; the retired dashboard regions are not rendered.
+         id="active-company"
+         class="event-stream"
+    -->
+
+    <form class="command-input" method="post">
+      <textarea name="request" required rows="1" placeholder="Ask CEO anything or give a command..."></textarea>
+      <button class="command-send" aria-label="Send to CEO">Send <span>→</span></button>
+    </form>
+  </section>
+
+  <details class="ceo-history"><summary>Recent conversation <span>{{snapshot.conversation|length}}</span></summary>
+    <div class="conversation-log">{% for item in snapshot.conversation %}<article><div class="conversation-founder"><small>Founder</small><p>{{item.founder}}</p></div><div class="conversation-ceo"><small>CEO · {{item.mode or item.run.status}}</small><p>{{item.ceo}}</p><details><summary>Advanced audit</summary><a href="/runs/{{item.run.id}}">Open execution audit</a></details></div></article>{% else %}<p>No prior CEO conversation.</p>{% endfor %}</div>
+  </details>
+</main>
+{% endblock %}

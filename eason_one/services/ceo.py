@@ -8,18 +8,22 @@ from .company import get_company,spent,remaining
 from .brain import current
 from ..schemas import CEO_SCHEMA,SYNTHESIS_SCHEMA
 
-MODES={"NEW_PROJECT","PROJECT_ACTION","STATUS_QUERY"}
+MODES={"NEW_PROJECT","PROJECT_ACTION","STATUS_QUERY","ADVISORY","OPERATION_PLAN"}
 PRIORITIES={"LOW","MEDIUM","HIGH","CRITICAL"}
 TASK_FIELDS={"title","objective","assignee_slug","reviewer_slug","required_output","acceptance_criteria"}
 
 def operating_context():
     roster=[]
     for e in Employee.query.filter_by(active=True).order_by(Employee.id):
-        active=Task.query.filter_by(assigned_employee_id=e.id).filter(Task.status.in_(["ASSIGNED","WORKING","BLOCKED","REVIEW"])).all()
+        active=(Task.query.join(Project,Task.project_id==Project.id)
+          .filter(Task.assigned_employee_id==e.id,Project.environment=="LIVE",
+            Task.status.in_(["ASSIGNED","WORKING","BLOCKED","REVIEW"])).all())
         names=sorted({t.project.name for t in active})
+        model_text=(f"{e.current_model.label} / {e.current_model.model_name}" if e.current_model
+          else "UNASSIGNED / execution unavailable")
         roster.append(f"{e.name}\nID: {e.id}; slug: {e.slug}; department: {e.department.name if e.department else 'CEO Office / Assurance'}; "
           f"position: {e.position.name} / level {e.position.level}; manager: {e.manager.name if e.manager else 'Founder'}; "
-          f"role: {e.role_description}; model: {e.current_model.label} / {e.current_model.model_name}; active tasks: {len(active)}; projects: {', '.join(names) or '-'}")
+          f"role: {e.role_description}; model: {model_text}; active tasks: {len(active)}; projects: {', '.join(names) or '-'}")
     summaries=[]
     for p in Project.query.filter(Project.status.in_(["PLANNING","ACTIVE","BLOCKED","REVIEW"]),Project.environment=="LIVE").order_by(Project.id):
         counts=dict(db.session.query(Task.status,func.count(Task.id)).filter_by(project_id=p.id).group_by(Task.status).all())
@@ -45,6 +49,10 @@ def _validate_tasks(tasks):
         if item["reviewer_slug"] is not None and item["reviewer_slug"] not in active: raise ValueError("Unknown or inactive reviewer")
 
 def validate_plan(payload):
+    if isinstance(payload,dict) and payload.get("mode")=="OPERATION_PLAN":
+        compact={"mode":payload.get("mode"),"executive_response":payload.get("executive_response"),
+          "operation":payload.get("operation")}
+        return __import__("eason_one.services.operations",fromlist=["validate_plan"]).validate_plan(compact)
     if not isinstance(payload,dict) or payload.get("mode") not in MODES: raise ValueError("Invalid CEO request mode")
     if not isinstance(payload.get("executive_response"),str) or not payload["executive_response"].strip(): raise ValueError("Missing executive response")
     mode=payload["mode"]
@@ -60,22 +68,39 @@ def validate_plan(payload):
     else:
         expected|={"project_id"}
         if payload.get("project_id") is not None and not db.session.get(Project,payload["project_id"]): raise ValueError("CEO referenced an unknown Project ID")
-    full={"mode","executive_response","project","project_id","tasks"}
+    full={"mode","executive_response","project","project_id","tasks","operation"}
     keys=frozenset(payload)
     if keys not in {frozenset(expected),frozenset(full)}: raise ValueError("CEO response has unexpected fields")
     if keys==frozenset(full):
+        if payload.get("operation") is not None: raise ValueError("Only OPERATION_PLAN may define an operation")
         if mode=="NEW_PROJECT" and payload["project_id"] is not None: raise ValueError("NEW_PROJECT cannot reference an existing Project")
-        if mode in {"PROJECT_ACTION","STATUS_QUERY"} and payload["project"] is not None: raise ValueError("Existing-project modes cannot define a new Project")
-        if mode=="STATUS_QUERY" and payload["tasks"]: raise ValueError("STATUS_QUERY cannot propose Tasks")
+        if mode in {"PROJECT_ACTION","STATUS_QUERY","ADVISORY"} and payload["project"] is not None: raise ValueError("Non-project-creation modes cannot define a new Project")
+        if mode in {"STATUS_QUERY","ADVISORY"} and payload["tasks"]: raise ValueError(f"{mode} cannot propose Tasks")
+        if mode=="ADVISORY" and payload["project_id"] is not None: raise ValueError("ADVISORY cannot bind authoritative Project state")
     return payload
 
 def founder_request(ceo,request):
-    prompt=ceo.system_instructions+"\nCEO_FOUNDER_REQUEST\nReturn only strict JSON using NEW_PROJECT, PROJECT_ACTION, or STATUS_QUERY. Assign only roster slugs. Never mutate authority."
-    run=execute(ceo,"CEO_FOUNDER_REQUEST",request,context_override=operating_context(),system_prompt_override=prompt,response_schema=CEO_SCHEMA)
+    prompt=ceo.system_instructions+"\nCEO_FOUNDER_REQUEST\nReturn only strict JSON using ADVISORY, OPERATION_PLAN, PROJECT_ACTION, or STATUS_QUERY. Use OPERATION_PLAN for a new internal objective. Never execute before Founder approval. Never mutate authority."
+    operation=__import__("eason_one.models",fromlist=["Operation"]).Operation.query.filter(
+      __import__("eason_one.models",fromlist=["Operation"]).Operation.status.in_(
+        ["PLANNED","RUNNING","WAITING_FOR_FOUNDER","PAUSED"])).order_by(
+        __import__("eason_one.models",fromlist=["Operation"]).Operation.updated_at.desc()).first()
+    projects=Project.query.filter_by(environment="LIVE").order_by(Project.updated_at.desc()).all()
+    lowered=request.lower()
+    project=next((item for item in projects if item.name.lower() in lowered),None)
+    if not project and operation: project=operation.project
+    if not project and len(projects)==1: project=projects[0]
+    composed=__import__("eason_one.services.ceo_context",fromlist=["compose"]).compose(
+      ceo,founder_request=request,operation=operation,project=project)
+    run=execute(ceo,"CEO_FOUNDER_REQUEST",request,context_override=composed.text,
+      context_composition=composed.composition,system_prompt_override=prompt,response_schema=CEO_SCHEMA)
     if run.status!="SUCCEEDED": return run,None
     try:
         plan=validate_plan(json.loads(run.raw_output)); run.parsed_output_json=plan
-        if plan["mode"]=="STATUS_QUERY": db.session.commit(); return run,None
+        if plan["mode"] in {"STATUS_QUERY","ADVISORY"}: db.session.commit(); return run,None
+        if plan["mode"]=="OPERATION_PLAN":
+            operation=__import__("eason_one.services.operations",fromlist=["propose_operation"]).propose_operation(ceo,plan)
+            return run,operation
         proposal=Proposal(project_id=plan.get("project_id"),agent_run_id=run.id,proposed_by_employee_id=ceo.id,
           payload_json={"type":"PROJECT_PLAN","plan":plan},status="PENDING")
         db.session.add(proposal); db.session.commit(); return run,proposal

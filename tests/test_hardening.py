@@ -139,8 +139,8 @@ def test_english_default(app):
     with app.test_request_context("/"): assert translate("nav.projects")=="Projects"
 def test_language_switch_and_session_persistence(client):
     client.post("/language/zh-TW",data={"next":"/ceo"})
-    assert "專案".encode() in client.get("/ceo").data
-    assert "員工".encode() in client.get("/employees").data
+    assert "指揮中心".encode() in client.get("/command").data
+    assert "團隊".encode() in client.get("/team").data
 def test_missing_zh_translation_falls_back_to_english(app):
     from eason_one.i18n import TRANSLATIONS
     TRANSLATIONS["en"]["test.only.en"]="English fallback"

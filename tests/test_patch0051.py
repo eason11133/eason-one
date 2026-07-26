@@ -36,7 +36,7 @@ class PartialRoundProvider:
         self.failed_once = False
 
     def complete(self, model, system_prompt, user_prompt, context, max_output_tokens, response_schema=None):
-        employee_name = context.split("EMPLOYEE\n", 1)[1].split(";", 1)[0]
+        employee_name = context.split("EMPLOYEE\nNAME: ", 1)[1].split("\n", 1)[0]
         self.calls.append(employee_name)
         if employee_name == "Researcher" and not self.failed_once:
             self.failed_once = True
@@ -152,14 +152,12 @@ def test_ceo_dashboard_shows_only_live_project_work(client, ctx):
              assigned_employee_id=researcher.id),
     ])
     db.session.commit()
-    page = client.get("/ceo").get_data(as_text=True)
+    page = client.get("/command").get_data(as_text=True)
     assert "Visible Live" in page
     assert "Hidden Smoke" not in page
     assert "Hidden Archive" not in page
-    assert "<b>1</b><span>Active Projects</span>" in page
-    assert "<b>0</b><span>Active Tasks</span>" in page
-    assert "<b>1</b><span>Blocked</span>" in page
-    assert "Live blocked" not in page  # dashboard uses aggregate active state, not task titles
+    assert "Founder decision required" in page
+    assert "Live blocked" in page
     assert "Archived done" not in page
 
 

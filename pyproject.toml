@@ -2,7 +2,7 @@
 name = "eason-one"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = ["Flask>=3.1", "Flask-SQLAlchemy>=3.1", "SQLAlchemy>=2.0", "openai>=2.48.0,<3"]
+dependencies = ["Flask>=3.1", "Flask-SQLAlchemy>=3.1", "SQLAlchemy>=2.0", "openai>=2.48.0,<3", "anthropic>=0.117.0,<1"]
 
 [project.optional-dependencies]
 test = ["pytest>=8.0"]

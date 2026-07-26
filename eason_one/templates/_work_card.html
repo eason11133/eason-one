@@ -1,0 +1,5 @@
+<a class="operation-row" href="/projects/{{item.project.id}}">
+  <div class="operation-state"><span>{{item.project.status}}</span><small>{% if item.total %}{{item.done}} / {{item.total}} tasks done{% else %}Lifecycle {{item.project.status|lower}}{% endif %}</small></div>
+  <div class="operation-main"><h3>{{item.project.name}}</h3><p>{{item.project.objective}}</p><small>Next · {{item.project.next_milestone or 'Milestone not set'}}</small></div>
+  <div class="operation-owner"><small>Owner / team</small><b>{{item.project.owner.name}}</b><span>{{item.team|map(attribute='name')|join(', ') or 'Owner only'}}</span><em>NT$ {{'%.2f'|format(item.cost)}}</em></div>
+</a>

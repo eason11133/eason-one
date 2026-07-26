@@ -3,7 +3,7 @@ from ..extensions import db
 from ..models import WorkMessage,Employee
 from .execution import execute
 from .tasks import transition
-from .context import build
+from .context import build_with_composition
 from ..schemas import REVIEW_SCHEMA
 
 FIELDS={"decision","summary","issues","required_changes"}
@@ -19,9 +19,12 @@ def run_review(task,reviewer=None,instruction="Review this Task"):
     allowed=task.reviewer or Employee.query.filter_by(slug="ceo").one()
     reviewer=reviewer or allowed
     if reviewer.id!=allowed.id: raise ValueError("Only the assigned reviewer may run review")
-    context=build(reviewer,task.project,task)+f"\n\nASSIGNED EMPLOYEE RESULT\n{task.result_summary or '-'}"
+    context, composition = build_with_composition(reviewer,task.project,task)
+    context += f"\n\nASSIGNED EMPLOYEE RESULT\n{task.result_summary or '-'}"
     prompt=reviewer.system_instructions+"\nTASK_REVIEW\nReturn only JSON: decision ACCEPT|REVISE|BLOCK, summary, issues, required_changes."
-    run=execute(reviewer,"TASK_REVIEW",instruction,task.project,task,context_override=context,system_prompt_override=prompt,response_schema=REVIEW_SCHEMA)
+    run=execute(reviewer,"TASK_REVIEW",instruction,task.project,task,
+      context_override=context,context_composition=composition,
+      system_prompt_override=prompt,response_schema=REVIEW_SCHEMA)
     if run.status!="SUCCEEDED": return run
     try:
         payload=validate_review(json.loads(run.raw_output)); run.parsed_output_json=payload

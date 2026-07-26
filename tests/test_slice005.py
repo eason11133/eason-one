@@ -117,11 +117,11 @@ def test_founder_join_intervention_commands_and_compact_context(ctx):
     db.session.commit()
     context = meetings.compact_context(meeting, people()[1])
     assert "Do not assume retailer demand." in context
-    assert "Resolve packaging risk." in context
-    assert "Packaging risk remains." in context
-    assert "round-3-material" in context
+    assert "Resolve packaging risk." not in context
+    assert "Packaging risk remains." not in context
+    assert "round-3-material" not in context
     assert "round-1-material" not in context
-    assert f"#{fact.id} [FACT] Company constraint" in context
+    assert f"EVIDENCE_ID: {fact.id} | TYPE: FACT" in context
 
 
 def test_mock_meeting_round_usage_feedback_and_no_authoritative_mutation(ctx):

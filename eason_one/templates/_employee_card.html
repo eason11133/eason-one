@@ -1,0 +1,8 @@
+<div class="personnel-node status-{{item.status|lower|replace(' ','-')}}" data-employee-id="{{item.employee.id}}" data-manager-id="{{item.employee.manager_id or ''}}">
+  <span class="employee-node">
+  <a class="personnel-link" href="/employees/{{item.employee.id}}">
+    <span class="employee-avatar" aria-label="{{item.employee.name}} avatar"><i class="avatar-head"></i><i class="avatar-shoulders"></i><small>{{item.employee.name[:1]}}</small></span>
+    <span class="personnel-identity"><small>{{item.employee.position.name}} · L{{item.employee.position.level}}</small><b>{{item.employee.name}}</b><em><i></i>{{item.status}}</em>{% if item.current_work %}<span>{{item.current_work.project.name}}</span>{% endif %}</span>
+  </a>
+  </span>
+</div>

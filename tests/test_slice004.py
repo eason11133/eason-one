@@ -69,7 +69,7 @@ def test_valid_status_query_is_successful_ceo_ui(ctx,client):
     p,_=project_task(); response=client.post("/ceo",data={"request":"How is the Beauty project going?"},follow_redirects=True)
     run=AgentRun.query.filter_by(purpose="CEO_FOUNDER_REQUEST").one()
     assert run.parsed_output_json["mode"]=="STATUS_QUERY" and b"failed validation" not in response.data
-    assert run.parsed_output_json["executive_response"].encode() in client.get("/ceo").data and Proposal.query.count()==0
+    assert run.parsed_output_json["executive_response"].encode() in client.get("/command").data and Proposal.query.count()==0
 
 def test_task_execution_stores_result_and_pending_proposal_only(ctx):
     p,t=project_task(); run=run_task(t)
@@ -124,5 +124,5 @@ def test_effective_ui_excludes_targets_and_keeps_killed_marker(ctx,client):
     killed=add_knowledge("KILLED","KILLED_MARKER","no",project_id=p.id,target_knowledge_id=h.id,founder_approved=True)
     effective=current(p.id); assert h not in effective and killed in effective
     page=client.get(f"/projects/{p.id}").data
-    current_section=page.split(b"Historical Knowledge")[0]
+    current_section=page.split(b"Advanced / operations")[0]
     assert b"KILLED_MARKER" in current_section and b"OLD_TARGET" not in current_section

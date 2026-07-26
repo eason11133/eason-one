@@ -23,7 +23,8 @@ def test_employee_identity_and_model_history(ctx):
     _,e,_=people(); eid=e.id
     m=ModelConfig(label="Other",provider_key="mock",model_name="v2",input_price_per_million=0,output_price_per_million=0)
     db.session.add(m); db.session.commit(); change_model(e,m,"Upgrade")
-    assert e.id==eid and Employee.query.count()==6 and e.current_model.model_name=="v2"
+    assert e.id==eid and Employee.query.count()==7 and e.current_model.model_name=="v2"
+    assert Employee.query.filter_by(slug="hr-director").one().position.name=="HR Director"
     assert EmployeeModelHistory.query.filter_by(employee_id=e.id).count()==2
     assert EmployeeModelHistory.query.filter_by(employee_id=e.id,ended_at=None).one().model_config_id==m.id
 

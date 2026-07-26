@@ -4,6 +4,7 @@ from ..models import Proposal
 from ..schemas import TASK_EXECUTION_SCHEMA
 from .execution import execute
 from .brain import validate_basis_ids
+from .context import build_with_composition
 
 FIELDS={"result_summary","knowledge_proposals"}
 CANDIDATE_FIELDS={"kind","title","content","source_ref","rationale","basis_knowledge_ids"}
@@ -11,7 +12,10 @@ def run_task(task):
     if task.status not in {"ASSIGNED","WORKING"}: raise ValueError("Task is not executable")
     employee=task.assigned_employee
     prompt=employee.system_instructions+"\nTASK_EXECUTION\nReturn the structured Task result. Do not claim web research or fabricate citations."
-    run=execute(employee,"TASK_EXECUTION",task.objective,task.project,task,system_prompt_override=prompt,response_schema=TASK_EXECUTION_SCHEMA)
+    context, composition = build_with_composition(employee, task.project, task)
+    run=execute(employee,"TASK_EXECUTION",task.objective,task.project,task,
+      context_override=context,context_composition=composition,
+      system_prompt_override=prompt,response_schema=TASK_EXECUTION_SCHEMA)
     if run.status!="SUCCEEDED": return run
     try:
         payload=json.loads(run.raw_output)

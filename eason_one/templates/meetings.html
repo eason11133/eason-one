@@ -1,1 +1,83 @@
-{% extends "base.html" %}{% block content %}<header><div><label>COLLABORATION</label><h1>Meeting Lobby</h1><p>Explicit, bounded organizational discussion.</p></div></header><div class="grid"><section><h2>Meetings</h2><div class="cards">{% for meeting,tokens,cost in rows %}<a class="employee meeting-card {{'secondary-card' if meeting.status in ['ENDED','TERMINATED_BY_FOUNDER']}}" href="/meetings/{{meeting.id}}"><label>{{meeting.status}}</label><h2>{{meeting.title}}</h2><p>{{meeting.project.name if meeting.project else 'Company-level'}} · Chair {{meeting.chair.name}}</p><div class="avatar-strip">{% for participant in meeting.participants %}<span class="mini-avatar" title="{{participant.employee.name}}">{{participant.employee.name.split()|map('first')|join}}</span>{% endfor %}</div><div class="stats"><span>{{meeting.current_round}} / {{meeting.max_rounds}}<small>ROUND</small></span><span>{{tokens}}<small>TOKENS</small></span><span>TWD {{cost}}<small>ACTUAL COST</small></span></div></a>{% else %}<p class="muted">No Meetings.</p>{% endfor %}</div></section><section class="panel"><h2>Plan Meeting</h2><form method="post"><input name="title" required placeholder="Meeting title"><textarea name="purpose" required placeholder="Purpose"></textarea><textarea name="agenda" required placeholder="Agenda"></textarea><select name="project_id"><option value="">Company-level</option>{% for p in projects %}<option value="{{p.id}}">{{p.name}}</option>{% endfor %}</select><select name="chair_employee_id">{% for e in employees %}<option value="{{e.id}}">{{e.name}} chairs</option>{% endfor %}</select><label>Participants</label><select name="participant_ids" multiple required size="6">{% for e in employees %}<option value="{{e.id}}">{{e.name}} · {{e.position.name}}</option>{% endfor %}</select><input name="max_rounds" type="number" min="1" value="3"><input name="token_limit" type="number" min="1" value="12000"><input name="real_cost_limit_twd" type="number" min="0" step="0.0001" value="100"><button>Plan Meeting</button></form></section></div>{% endblock %}
+{% extends "base.html" %}{% block content %}
+<main class="meeting-lobby">
+  <header class="meeting-lobby-header">
+    <div><label>COLLABORATION</label><h1>Meeting Lobby</h1><p>See what is live, what needs you, and what the company concluded.</p></div>
+    <button class="button" type="button" id="open-meeting-planner" data-planner-target="meeting-planner">+ New Meeting</button>
+  </header>
+
+  <section id="meeting-live" class="lobby-section">
+    <header><div><small>NOW</small><h2>Live</h2></div></header>
+    <div class="meeting-activity-list">
+      {% for row in rows if row.meeting.status in ['ACTIVE','RUNNING','PAUSED','WAITING_FOR_FOUNDER'] %}
+      <a class="meeting-activity-row {{'needs-founder' if row.founder_status in ['NEEDS FOUNDER','ACTION REQUIRED'] else ''}}" href="/meetings/{{row.meeting.id}}">
+        <span class="meeting-state"><i></i><b>{{row.founder_status}}</b><small>Round {{row.meeting.current_round}} of {{row.meeting.max_rounds}}</small></span>
+        <span class="meeting-identity"><small>{{row.meeting.project.name if row.meeting.project else 'COMPANY'}}</small><strong>{{row.meeting.title}}</strong><em>{{row.meeting.meeting_question or row.meeting.purpose}}</em></span>
+        <span class="meeting-people">{% for participant in row.meeting.participants[:4] %}<i class="mini-avatar" aria-hidden="true">{{participant.employee.name.split()|map('first')|join}}</i>{% endfor %}<small class="participant-names">{{row.participant_label}}</small></span>
+        <span class="meeting-economics"><b>{{row.calls}} calls</b><small>{{row.tokens}} tokens · ACTUAL COST TWD {{row.cost}}</small></span>
+        <span class="row-arrow">→</span>
+      </a>
+      {% else %}<div class="lobby-empty"><h3>No live Meeting</h3><p>The company is not in session.</p></div>{% endfor %}
+    </div>
+  </section>
+
+  <section id="meeting-recent" class="lobby-section">
+    <header><div><small>OUTCOMES</small><h2>Recent Results</h2></div></header>
+    <div class="meeting-activity-list">
+      {% for row in rows if row.meeting.status in ['ENDED','TERMINATED_BY_FOUNDER'] %}
+      <a class="meeting-activity-row meeting-result-row" href="/meetings/{{row.meeting.id}}">
+        <span class="meeting-state"><b>{{row.founder_status}}</b><small>{{row.meeting.updated_at.strftime('%Y-%m-%d') if row.meeting.updated_at else ''}}</small></span>
+        <span class="meeting-identity"><small>{{row.meeting.project.name if row.meeting.project else 'COMPANY'}}</small><strong>{{row.meeting.title}}</strong>{% if row.result_excerpt %}<em>{{row.result_excerpt}}</em>{% endif %}</span>
+        <span class="meeting-people">{% for participant in row.meeting.participants[:4] %}<i class="mini-avatar" aria-hidden="true">{{participant.employee.name.split()|map('first')|join}}</i>{% endfor %}<small class="participant-names">{{row.participant_label}}</small></span>
+        <span class="meeting-economics"><b>{{row.calls}} calls</b><small>{{row.tokens}} tokens · ACTUAL COST TWD {{row.cost}}</small></span>
+        <span class="row-arrow">→</span>
+      </a>
+      {% else %}<div class="lobby-empty"><h3>No results yet</h3><p>Completed Meeting outcomes will appear here.</p></div>{% endfor %}
+    </div>
+  </section>
+
+  <details id="meeting-planner" class="meeting-planner">
+    <summary><span><small>FOUNDER OVERRIDE</small><b>+ New Meeting</b></span><em>Open planner</em></summary>
+    <form method="post" class="meeting-plan-form">
+      <div class="planner-basics">
+        <label>TITLE</label><input name="title" required placeholder="Product Strategy Review">
+        <label>MISSION CONTEXT</label><textarea name="mission_context" required placeholder="Bounded background and constraints."></textarea>
+        <label>MEETING QUESTION</label><input name="meeting_question" required maxlength="240" placeholder="What decision should the company reach?">
+        <input type="hidden" name="purpose" value="Meeting mission"><input type="hidden" name="agenda" value="">
+      </div>
+      <label>PARTICIPANTS</label>
+      <div class="participant-picker">{% for e in employees %}<label class="participant-card"><input type="checkbox" name="participant_ids" value="{{e.id}}">
+        <span class="mini-avatar">{{e.name.split()|map('first')|join}}</span><b>{{e.name}}</b><small>{{e.position.name}} · L{{e.position.level}}</small>
+        <details class="planner-technical"><summary>Technical model details</summary><small>{{e.current_model.label}} · {{e.current_model.model_name}}</small></details>
+      </label>{% endfor %}</div>
+      <div class="planner-selects">
+        <div><label>CHAIR</label><select name="chair_employee_id">{% for e in employees %}<option value="{{e.id}}">{{e.name}} · {{e.position.name}}</option>{% endfor %}</select></div>
+        <div><label>PROJECT (OPTIONAL)</label><select name="project_id"><option value="">Company-level</option>{% for p in projects %}<option value="{{p.id}}">{{p.name}}</option>{% endfor %}</select></div>
+      </div>
+      <label>MEETING MODE</label><div class="profile-picker">{% for name,p in profiles.items() %}<label class="profile-card"><input type="radio" name="execution_profile" value="{{name}}" {{'checked' if name=='ECONOMY'}}>
+        <b>{{name}}</b><small>{{'Low-cost, short decision meeting.' if name=='ECONOMY' else ('Balanced company discussion.' if name=='STANDARD' else 'Deeper bounded analysis.')}}<br>Up to {{p.max_rounds}} rounds · default TWD {{p.cost}}</small></label>{% endfor %}</div>
+      <details class="advanced-settings"><summary>ADVANCED SETTINGS</summary>
+        <label>MAX ROUNDS — hard ceiling, not a target</label><input name="max_rounds" type="number" min="1" placeholder="Use profile default">
+        <label>TOKEN CEILING — total actual plus conservative next-call estimate</label><input name="token_limit" type="number" min="1" placeholder="Use profile default">
+        <label>TWD CEILING — hard Meeting spend limit</label><input name="real_cost_limit_twd" type="number" min="0" step="0.0001" placeholder="Use profile default">
+        <label>MAX SPEAKERS PER ROUND</label><input name="max_speakers_per_round" type="number" min="1" placeholder="Use profile default">
+        <label>CONTRIBUTION OUTPUT CAP</label><input name="contribution_output_cap" type="number" min="1" placeholder="Use profile default">
+        <label>ROUTER OUTPUT CAP</label><input name="router_output_cap" type="number" min="1" placeholder="Use profile default">
+        <label>SYNTHESIS OUTPUT CAP</label><input name="synthesis_output_cap" type="number" min="1" placeholder="Use profile default">
+      </details>
+      <button>Plan Meeting</button>
+    </form>
+  </details>
+  <script>
+  (() => {
+    const trigger = document.getElementById("open-meeting-planner");
+    const planner = document.getElementById(trigger.dataset.plannerTarget);
+    trigger.addEventListener("click", () => {
+      planner.open = true;
+      planner.scrollIntoView({behavior: "smooth", block: "start"});
+      const firstField = planner.querySelector("input:not([type='hidden'])");
+      if (firstField) firstField.focus({preventScroll: true});
+    });
+  })();
+  </script>
+</main>
+{% endblock %}
