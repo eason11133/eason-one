@@ -18,8 +18,11 @@ def ensure_hr():
     employee=Employee.query.filter_by(slug="hr-director").first()
     if not employee:
         ceo=Employee.query.filter_by(slug="ceo").first()
-        luna=(ModelConfig.query.filter_by(active=True,archived=False)
-          .filter(db.func.lower(ModelConfig.label).like("%gpt-5.6%luna%")).first())
+        available=ModelConfig.query.filter_by(active=True,archived=False)
+        luna=(available.filter(
+          db.func.lower(ModelConfig.label).like("%gpt-5.6%luna%")).first()
+          or available.filter(ModelConfig.provider_key!="mock").first()
+          or available.first())
         employee=Employee(name="HR Director",slug="hr-director",
           department_id=department.id,position_id=position.id,
           manager_id=getattr(ceo,"id",None),
@@ -31,6 +34,19 @@ def ensure_hr():
         if luna:
             db.session.add(EmployeeModelHistory(employee_id=employee.id,
               model_config_id=luna.id,reason="Initial HR Director assignment"))
+    elif (not employee.current_model or not employee.current_model.active
+          or employee.current_model.archived
+          or (employee.current_model.provider_key=="mock"
+              and ModelConfig.query.filter_by(
+                active=True,archived=False).filter(
+                  ModelConfig.provider_key!="mock").first())):
+        available=ModelConfig.query.filter_by(active=True,archived=False)
+        model=(available.filter(ModelConfig.provider_key!="mock").first()
+          or available.first())
+        if model:
+            employee.current_model_config_id=model.id
+            db.session.add(EmployeeModelHistory(employee_id=employee.id,
+              model_config_id=model.id,reason="Restored operational HR assessment model"))
     db.session.commit()
     return employee
 

@@ -8,9 +8,9 @@
   <section id="meeting-live" class="lobby-section">
     <header><div><small>NOW</small><h2>Live</h2></div></header>
     <div class="meeting-activity-list">
-      {% for row in rows if row.meeting.status in ['ACTIVE','RUNNING','PAUSED','WAITING_FOR_FOUNDER'] %}
+      {% for row in rows if row.meeting.status in ['PLANNED','ACTIVE','RUNNING','PAUSED','WAITING_FOR_FOUNDER'] %}
       <a class="meeting-activity-row {{'needs-founder' if row.founder_status in ['NEEDS FOUNDER','ACTION REQUIRED'] else ''}}" href="/meetings/{{row.meeting.id}}">
-        <span class="meeting-state"><i></i><b>{{row.founder_status}}</b><small>Round {{row.meeting.current_round}} of {{row.meeting.max_rounds}}</small></span>
+        <span class="meeting-state"><i></i><b>{{'PLANNED / READY TO START' if row.meeting.status=='PLANNED' else row.founder_status}}</b><small>{{'Open to review and start' if row.meeting.status=='PLANNED' else ('Round ' ~ row.meeting.current_round ~ ' of ' ~ row.meeting.max_rounds)}}</small></span>
         <span class="meeting-identity"><small>{{row.meeting.project.name if row.meeting.project else 'COMPANY'}}</small><strong>{{row.meeting.title}}</strong><em>{{row.meeting.meeting_question or row.meeting.purpose}}</em></span>
         <span class="meeting-people">{% for participant in row.meeting.participants[:4] %}<i class="mini-avatar" aria-hidden="true">{{participant.employee.name.split()|map('first')|join}}</i>{% endfor %}<small class="participant-names">{{row.participant_label}}</small></span>
         <span class="meeting-economics"><b>{{row.calls}} calls</b><small>{{row.tokens}} tokens · ACTUAL COST TWD {{row.cost}}</small></span>

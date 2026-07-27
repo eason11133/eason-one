@@ -50,12 +50,28 @@ def _bounded(lines, budget):
     return "\n\n".join(output)
 
 
-def _working_memory():
+def _working_memory(founder_request=None, operation=None, project=None):
     runs = AgentRun.query.filter_by(
         purpose="CEO_FOUNDER_REQUEST", status="SUCCEEDED"
     ).order_by(AgentRun.started_at.desc()).limit(6).all()
+    request_terms={
+        word for word in (founder_request or "").lower().split()
+        if len(word)>=5
+    }
     lines = []
     for run in reversed(runs):
+        if run.project_id:
+            project=db.session.get(Project,run.project_id)
+            if project and project.environment!="LIVE":
+                continue
+        scoped_relevant=(
+          (operation and run.operation_id==operation.id)
+          or (project and run.project_id==project.id)
+        )
+        if request_terms and not scoped_relevant and not request_terms.intersection(
+          (run.user_request or "").lower().split()
+        ):
+            continue
         response = (run.parsed_output_json or {}).get("executive_response")
         lines.append(f"Founder: {run.user_request}")
         if response:
@@ -211,7 +227,9 @@ def compose(ceo, founder_request=None, operation=None, project=None):
     sections = {}
     metadata = {}
     producers = {
-        "working_memory": _working_memory,
+        "working_memory": lambda: _working_memory(
+            founder_request, operation, project
+        ),
         "operation": lambda: _operation_memory(operation),
         "project": lambda: _project_memory(project),
         "meetings": lambda: _meeting_memory(operation, project),

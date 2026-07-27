@@ -11,7 +11,7 @@
     </div>
 
     <article class="executive-briefing ceo-report">
-      <span class="eyebrow">CEO REPORT</span>
+      <span class="eyebrow">CEO REPORT · {{snapshot.executive_state|replace('_',' ')}}</span>
       {% if snapshot.report.requires_founder %}<span class="ceo-attention">Needs you · Founder decision required. Company activity requires Founder attention.</span>{% endif %}
       <h2>{{snapshot.report.headline}}</h2>
       <p>{{snapshot.report.summary}}</p>
@@ -25,10 +25,11 @@
           <span><small>Maximum internal AI spend</small><b>NT$ {{operation.approved_budget_twd}}</b></span>
           <span><small>Spent / remaining</small><b>NT$ {{snapshot.report.actual_cost_twd}} / {{snapshot.report.remaining_budget_twd}}</b></span>
           {% if operation.status=='PLANNED' %}<form method="post" action="/operations/{{operation.id}}/approve"><button>Approve &amp; Run</button></form>
-          {% elif operation.status=='RUNNING' %}<span data-operation-runner data-operation-id="{{operation.id}}" data-completion-url="/command">CEO is continuing the approved Operation.</span><a class="secondary-action" href="/work">Observe operation →</a>
+          {% elif operation.status=='RUNNING' %}<span data-operation-runner data-operation-id="{{operation.id}}" data-completion-url="/command">CEO is continuing the current approved Operation.</span><a class="secondary-action" href="/work">Observe operation →</a>
           {% elif operation.status in ['COMPLETED','WAITING_FOR_FOUNDER','PAUSED'] %}<a class="secondary-action" href="/projects/{{operation.project_id}}">Review result →</a>{% endif %}
         </div>
       {% endif %}
+      {% if snapshot.report.unresolved_run %}<a class="secondary-action" href="/runs/{{snapshot.report.unresolved_run.id}}">Review preserved response and cost →</a>{% endif %}
     </article>
     <!-- Legacy structural contract markers only; the retired dashboard regions are not rendered.
          id="active-company"

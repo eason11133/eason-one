@@ -100,8 +100,13 @@ def founder_request(ceo,request):
     if not project and len(projects)==1: project=projects[0]
     composed=__import__("eason_one.services.ceo_context",fromlist=["compose"]).compose(
       ceo,founder_request=request,operation=operation,project=project)
+    # CEO_FOUNDER_REQUEST can produce the largest structured contract in V1.
+    # Keep the limit bounded by ModelConfig, but do not impose the old 512-token
+    # meeting-style ceiling on an Operation plan.
+    output_limit=min(2048,ceo.current_model.max_output_tokens)
     run=execute(ceo,"CEO_FOUNDER_REQUEST",request,context_override=composed.text,
-      context_composition=composed.composition,system_prompt_override=prompt,response_schema=CEO_SCHEMA)
+      context_composition=composed.composition,system_prompt_override=prompt,
+      response_schema=CEO_SCHEMA,max_output_tokens_override=output_limit)
     if run.status!="SUCCEEDED": return run,None
     try:
         plan=validate_plan(json.loads(run.raw_output)); run.parsed_output_json=plan

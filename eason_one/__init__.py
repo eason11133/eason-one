@@ -21,6 +21,10 @@ def create_app(test_config=None):
     with app.app_context():
         db.create_all()
         _upgrade_v1_database()
+        # Repair the operational HR role for existing V1 databases without
+        # fabricating candidates or creating a new provider configuration.
+        from .seed import ensure_hr
+        ensure_hr()
     return app
 
 def _upgrade_v1_database():

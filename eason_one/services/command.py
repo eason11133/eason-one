@@ -70,6 +70,10 @@ def _brief(active,attention,recent_tasks,recent_meetings):
 def _attention():
     items=[]
     for proposal in Proposal.query.filter_by(status="PENDING").order_by(Proposal.created_at.desc()).all():
+        if proposal.project_id:
+            scoped=db.session.get(Project,proposal.project_id)
+            if scoped and scoped.environment!="LIVE":
+                continue
         plan=(proposal.payload_json or {}).get("plan",{})
         project=plan.get("project") or {}
         items.append({"kind":"PROPOSAL","title":project.get("name") or "CEO proposed work",
@@ -86,6 +90,25 @@ def _attention():
           "summary":"Founder input required." if meeting.status=="WAITING_FOR_FOUNDER" else "Paid Meeting step requires a Founder decision.",
           "recommendation":"Open the Meeting.","href":f"/meetings/{meeting.id}","created_at":meeting.created_at})
     return sorted(items,key=lambda item:item["created_at"],reverse=True)
+
+def _unresolved_founder_failure():
+    latest=AgentRun.query.filter_by(purpose="CEO_FOUNDER_REQUEST").order_by(
+      AgentRun.started_at.desc()).first()
+    return latest if latest and latest.status=="FAILED" else None
+
+def _safe_partial_response(run):
+    if not run or not run.raw_output:
+        return None
+    import re
+    match=re.search(
+      r'"executive_response"\s*:\s*"((?:[^"\\]|\\.)*)',
+      run.raw_output,re.DOTALL)
+    if not match:
+        return None
+    try:
+        return json.loads(f'"{match.group(1)}"')
+    except Exception:
+        return match.group(1).replace("\\n"," ").strip() or None
 
 def _activity():
     rows=[]
@@ -117,7 +140,8 @@ def _conversation():
     for run in reversed(runs):
         payload=run.parsed_output_json or {}
         rows.append({"run":run,"founder":run.user_request,
-          "ceo":payload.get("executive_response") or (run.error_text if run.status=="FAILED" else "No validated response."),
+          "ceo":payload.get("executive_response") or _safe_partial_response(run)
+            or (run.error_text if run.status=="FAILED" else "No validated response."),
           "mode":payload.get("mode")})
     return rows
 
@@ -205,6 +229,7 @@ def snapshot():
     recent_meetings=(Meeting.query.filter(Meeting.status.in_(["ENDED","TERMINATED_BY_FOUNDER"]))
       .order_by(Meeting.ended_at.desc()).limit(4).all())
     attention=_attention()
+    unresolved=_unresolved_founder_failure()
     meetings=[]
     for meeting in Meeting.query.filter(Meeting.status.in_(OPEN_MEETING)).order_by(Meeting.created_at.desc()).all():
         tokens,cost=meeting_usage(meeting)
@@ -213,19 +238,38 @@ def snapshot():
     operation=Operation.query.filter(Operation.status.in_(
       ["PLANNED","WAITING_FOR_FOUNDER","RUNNING","PAUSED"])).order_by(
       Operation.updated_at.desc()).first()
-    if operation:
+    latest_interaction=_conversation()[-1] if _conversation() else None
+    if unresolved:
+        cost=Decimal(unresolved.real_cost or 0)
+        partial=_safe_partial_response(unresolved)
+        report={"headline":"A Founder request needs recovery.",
+          "summary":partial or "The CEO response was incomplete and no Company authority was created.",
+          "next_move":"Review the preserved paid response, then explicitly retry or provide a revised request.",
+          "risk":f"{unresolved.failure_reason or 'FAILED'} · TWD {cost:.2f}",
+          "requires_founder":True,
+          "decision_needed":"Choose whether to retry or replace this unresolved Founder request.",
+          "why_founder":"A paid Founder request failed before valid authority could be created.",
+          "after_decision":"The CEO will use a new explicit request; the historical paid response remains auditable.",
+          "operation":None,"unresolved_run":unresolved}
+    elif attention and not operation:
+        brief=_brief(active,attention,recent_tasks,recent_meetings)
+        report={"headline":brief["title"],"summary":brief["summary"],
+          "next_move":brief["recommendation"],"risk":brief.get("watch"),
+          "requires_founder":True,
+          "decision_needed":brief["summary"],
+          "why_founder":"This item requires existing Founder authority.",
+          "after_decision":"I will continue the governed Company path.",
+          "operation":None}
+    elif latest_interaction and latest_interaction["run"].status=="SUCCEEDED" and not operation:
+        report={"headline":"CEO response",
+          "summary":latest_interaction["ceo"],
+          "next_move":"Continue the conversation or approve proposed work when shown.",
+          "risk":None,"requires_founder":False,"decision_needed":None,
+          "why_founder":None,"after_decision":None,"operation":None}
+    elif operation:
         report=_operation_report(operation)
     else:
-        if attention:
-            brief=_brief(active,attention,recent_tasks,recent_meetings)
-            report={"headline":brief["title"],"summary":brief["summary"],
-              "next_move":brief["recommendation"],"risk":brief.get("watch"),
-              "requires_founder":True,
-              "decision_needed":brief["summary"],
-              "why_founder":"This item requires existing Founder authority.",
-              "after_decision":"I will continue the governed Company path.",
-              "operation":None}
-        elif active:
+        if active:
             brief=_brief(active,attention,recent_tasks,recent_meetings)
             report={"headline":brief["title"],"summary":brief["summary"],
               "next_move":brief["recommendation"],"risk":brief.get("watch"),
@@ -245,7 +289,10 @@ def snapshot():
       "active":active[:3],"attention":attention,"recent_tasks":recent_tasks,
       "recent_meetings":recent_meetings,"meetings":meetings,"activity":_activity(),
       "conversation":_conversation(),"brief":_brief(active,attention,recent_tasks,recent_meetings),
-      "report":report,"recent_operation":recent_operation}
+      "report":report,"recent_operation":recent_operation,
+      "executive_state":("UNRESOLVED_FAILURE" if unresolved else
+        "FOUNDER_ATTENTION" if report["requires_founder"] else
+        "ACTIVE_WORK" if operation or active else "IDLE")}
 
 def shell_snapshot():
     company=get_company()
@@ -262,7 +309,9 @@ def work_snapshot():
       "recent_tasks":Task.query.join(Project).filter(Project.environment=="LIVE",Task.status=="DONE").order_by(Task.completed_at.desc()).limit(8).all(),
       "recent_meetings":Meeting.query.join(Project,Meeting.project_id==Project.id).filter(
         Project.environment=="LIVE",Meeting.status.in_(["ENDED","TERMINATED_BY_FOUNDER"])).order_by(Meeting.ended_at.desc()).limit(6).all(),
-      "operations":Operation.query.order_by(Operation.updated_at.desc()).all()}
+      "operations":Operation.query.order_by(Operation.updated_at.desc()).all(),
+      "unresolved_events":([_unresolved_founder_failure()]
+        if _unresolved_founder_failure() else [])}
 
 def team_snapshot():
     employees=Employee.query.order_by(Employee.id).all()

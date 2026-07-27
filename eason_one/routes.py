@@ -10,7 +10,7 @@ from .services.tasks import create_task, transition, review
 from .services.execution import execute
 from .services.ceo import founder_request, materialize_project_plan,generate_project_briefing
 from .services.interviews import start, ask
-from .services.contributions import total, project_totals
+from .services.contributions import total, project_totals, meaningful_total
 from .services.learning import create as create_learning
 from .services.reviews import run_review
 from .services.brain import add_knowledge,active_hypotheses,current
@@ -41,11 +41,11 @@ def ceo():
 def _command_submit():
     try:
         run,proposal=founder_request(Employee.query.filter_by(slug="ceo").one(),request.form["request"])
-        if isinstance(proposal,Operation) and proposal.status=="RUNNING": flash("CEO is continuing the current approved Operation.","ok")
-        elif isinstance(proposal,Operation): flash("CEO proposed a bounded operation. Founder approval is required.","ok")
-        elif proposal: flash("CEO proposed governed work. Founder approval is required.","ok")
-        elif run.parsed_output_json: flash(run.parsed_output_json["executive_response"],"ok")
-        else: flash("CEO output failed validation; no Company state changed.","error")
+        if isinstance(proposal,Operation) and proposal.status=="RUNNING": pass
+        elif isinstance(proposal,Operation): pass
+        elif proposal: pass
+        elif run.parsed_output_json: pass
+        else: flash("CEO output was preserved but did not create Company authority.","error")
     except Exception as ex: flash(str(ex),"error")
     return redirect(url_for("main.command_center"))
 
@@ -329,8 +329,10 @@ def project_knowledge(id):
 def employees():
     rows=[]
     for e in Employee.query.order_by(Employee.id).all():
-        rows.append({"e":e,"active_tasks":Task.query.filter_by(assigned_employee_id=e.id).filter(Task.status.notin_(["DONE","FAILED","CANCELLED"])).all(),
-      "project_contribution":sum(v for _,v in project_totals(e.id)),"company_contribution":total(e.id,"COMPANY"),
+        rows.append({"e":e,"active_tasks":Task.query.join(Project).filter(
+          Task.assigned_employee_id==e.id,Project.environment=="LIVE",
+          Task.status.notin_(["DONE","FAILED","CANCELLED"])).all(),
+      "project_contribution":sum(v for _,v in project_totals(e.id)),"company_contribution":meaningful_total(e.id),
           "cost":Decimal(db.session.query(func.coalesce(func.sum(CostEvent.real_cost_delta),0)).filter_by(employee_id=e.id).scalar()),
           "tokens":db.session.query(func.coalesce(func.sum(AgentRun.input_tokens+AgentRun.output_tokens),0)).filter_by(employee_id=e.id).scalar()})
     return render_template("employees.html",rows=rows)
@@ -341,7 +343,7 @@ def employee_detail(id):
     history=EmployeeModelHistory.query.filter_by(employee_id=id).order_by(EmployeeModelHistory.started_at.desc()).all()
     learning=EmployeeLearningRecord.query.filter_by(employee_id=id).order_by(EmployeeLearningRecord.created_at.desc()).limit(10).all()
     return render_template("employee.html",e=e,tasks=tasks,runs=runs,history=history,learning=learning,
-      project_contributions=project_totals(id),cc=total(id,"COMPANY"),projects=Project.query.order_by(Project.name).all(),
+      project_contributions=project_totals(id),cc=meaningful_total(id),projects=Project.query.order_by(Project.name).all(),
       model_configs=ModelConfig.query.filter_by(active=True,archived=False).order_by(ModelConfig.label).all(),
       employee_view=command_service.employee_view(e),
       active_operations=Operation.query.filter_by(status="RUNNING").order_by(Operation.updated_at.desc()).all())
@@ -442,15 +444,17 @@ def meetings():
             defaults=meeting_service.PROFILES[profile]
             mission=request.form.get("mission_context") or request.form["purpose"]
             question=request.form.get("meeting_question") or request.form.get("agenda") or request.form["purpose"]
-            meeting_service.create(request.form["title"],mission,question,chair,participants,project,
+            created=meeting_service.create(request.form["title"],mission,question,chair,participants,project,
               request.form.get("max_rounds") or defaults["max_rounds"],request.form.get("token_limit") or defaults["tokens"],
               request.form.get("real_cost_limit_twd") or defaults["cost"],profile=profile,
               max_speakers_per_round=request.form.get("max_speakers_per_round") or defaults["max_speakers"],
               contribution_output_cap=request.form.get("contribution_output_cap") or defaults["contribution_cap"],
               router_output_cap=request.form.get("router_output_cap") or defaults["router_cap"],
               synthesis_output_cap=request.form.get("synthesis_output_cap") or defaults["synthesis_cap"])
-        except Exception as ex: flash(str(ex),"error")
-        return redirect(url_for("main.meetings"))
+            return redirect(url_for("main.meeting_room",id=created.id))
+        except Exception as ex:
+            flash(str(ex),"error")
+            return redirect(url_for("main.meetings"))
     rows=[]
     for meeting in Meeting.query.order_by(Meeting.created_at.desc()).all():
         tokens,cost=meeting_service.usage(meeting)
