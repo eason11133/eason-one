@@ -50,7 +50,7 @@ def test_ceo_operation_plan_uses_purpose_aware_output_budget(ctx, monkeypatch):
     assert operation.status=="PLANNED"
 
 
-def test_simple_and_structured_founder_requests_use_distinct_caps(
+def test_all_general_founder_requests_use_safe_structured_cap(
     ctx, monkeypatch
 ):
     ceo=_ceo()
@@ -67,7 +67,9 @@ def test_simple_and_structured_founder_requests_use_distinct_caps(
     monkeypatch.setattr("eason_one.services.execution.get_provider",lambda _:Provider())
     founder_request(ceo,"Give me company status")
     founder_request(ceo,"Prepare a realistic multi-task learning operation")
-    assert seen==[768,2048]
+    founder_request(
+      ceo,"Give me a GO/NO-GO recommendation and create the smallest operation.")
+    assert seen==[2048,2048,2048]
 
 
 def test_truncated_paid_founder_request_is_preserved_without_ghost_state(

@@ -1021,12 +1021,13 @@ def _hr_step(operation, request, request_key):
     try:
         run = assess_request(request)
         step.agent_run_id = run.id
-        wait_for_founder(
-            operation,
-            f"HR recommendation for {request.role_needed} requires Founder review.",
-        )
+        if request.status=="FOUNDER_REVIEW":
+            wait_for_founder(
+                operation,
+                f"HR recommendation for {request.role_needed} requires Founder review.",
+            )
         return _finish(step, run, {
-            "kind": "HR_ASSESSMENT", "status": "FOUNDER_REVIEW",
+            "kind": "HR_ASSESSMENT", "status": request.status,
             "hiring_request_id": request.id, "agent_run_id": run.id,
         })
     except Exception as exc:

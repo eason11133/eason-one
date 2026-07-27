@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 from eason_one.extensions import db
-from eason_one.models import AgentRun, Employee, MeetingMessage, MeetingStep
+from eason_one.models import AgentRun, Employee, Meeting, MeetingMessage, MeetingStep
 from eason_one.providers import ProviderResult
 from eason_one.services import meetings
 from eason_one.services.brain import add_knowledge
@@ -97,10 +97,11 @@ def test_concurrent_failed_retry_claim_invokes_provider_at_most_once(app, monkey
     monkeypatch.setattr("eason_one.services.execution.get_provider", lambda key: provider)
     concurrent_posts(app, meeting_id, ["retry-a", "retry-b"])
     with app.app_context():
-        assert provider.calls == 1
+        assert provider.calls == 0
         step = MeetingStep.query.filter_by(
             meeting_id=meeting_id, logical_key="ROUTER_BEFORE_ROUND_1").one()
-        assert step.status == "SUCCEEDED"
+        assert step.status == "FAILED"
+        assert db.session.get(Meeting,meeting_id).status == "PAUSED"
 
 
 def test_later_speakers_receive_bounded_validated_same_round_context(ctx, monkeypatch):

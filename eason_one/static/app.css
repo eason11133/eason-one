@@ -53,6 +53,7 @@ body{background:radial-gradient(circle at 70% 0,rgba(85,214,255,.07),transparent
 @media(max-width:760px){.operation-authority,.people-operations>header{display:grid}.operation-authority form,.operation-authority a{margin-left:0}.people-metrics{grid-template-columns:1fr 1fr}.hr-row{display:grid}}
 .operation-control{display:grid;gap:24px}.operation-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border-soft)}.operation-summary span{padding:16px;background:var(--surface-1)}.operation-summary small,.operation-summary b{display:block}.operation-summary small{color:var(--text-muted)}.operation-report{padding:24px;background:var(--surface-2);border-left:2px solid var(--accent)}.operation-report h2{margin:5px 0}.operation-tasks{display:grid;gap:1px;background:var(--border-soft)}.operation-tasks article{padding:18px;background:var(--surface-1)}.operation-tasks article h3,.operation-tasks article p{margin:5px 0}
 @media(max-width:760px){.operation-summary{grid-template-columns:1fr 1fr}}
+.parent-back{display:inline-flex;margin-bottom:18px;color:var(--text-secondary);font-size:var(--font-label);text-decoration:none}.parent-back:hover{color:var(--accent)}
 
 /* Dogfood Repair 001: shared Founder reading and spacing system. */
 :root{

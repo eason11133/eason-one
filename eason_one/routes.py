@@ -504,7 +504,7 @@ def meetings():
     rows=[]
     for meeting in Meeting.query.order_by(Meeting.created_at.desc()).all():
         tokens,cost=meeting_service.usage(meeting)
-        calls=AgentRun.query.filter_by(meeting_id=meeting.id).count()
+        calls=meeting_service.confirmed_provider_calls(meeting)
         result=meeting_service.result_view(meeting)
         participant_names=[item.employee.name for item in meeting.participants]
         visible_names=participant_names[:3]
@@ -542,7 +542,8 @@ def meeting_room(id):
             try: parsed=json.loads(message.content)
             except Exception: pass
         display.append({"message":message,"parsed":parsed})
-    return render_template("meeting.html",meeting=meeting,tokens=tokens,cost=cost,calls=len(runs),runs=runs,
+    return render_template("meeting.html",meeting=meeting,tokens=tokens,cost=cost,
+      calls=meeting_service.confirmed_provider_calls(meeting),attempts=len(runs),runs=runs,
       messages=messages,display=display,recent=display[-6:],feedback_signals=sorted(meeting_service.SIGNALS),
       salvage=meeting_service.salvage_preview(meeting),primary_status=meeting_service.primary_status_text(meeting),
       result=meeting_service.result_view(meeting))

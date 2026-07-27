@@ -277,7 +277,7 @@ def test_hr_proposal_has_alternatives_model_money_and_probation(ctx):
         success_criteria=["Three useful assignments"],
         probation_assignments=3,
     )
-    assert request.status == "FOUNDER_REVIEW"
+    assert request.status == "ASSESSMENT_COMPLETE"
     proposal = request.hr_assessment_json
     assert proposal["existing_staff_alternative"]
     assert request.recommended_model_config_id == model.id

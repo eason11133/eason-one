@@ -249,4 +249,4 @@ def test_standard_result_normalization_uses_persisted_runs(ctx):
     assert view["agreement"] == ["Proceed carefully"]
     assert view["actions"] == ["Run the probe"]
     assert view["founder_decisions"] == ["Approve the probe"]
-    assert view["calls"] == 1
+    assert view["calls"] == 0

@@ -88,13 +88,7 @@ def _current_operation_follow_up(request):
     return text.startswith(starters) and any(item in text for item in references)
 
 def _founder_request_output_limit(ceo, request):
-    text=" ".join(request.lower().split())
-    simple_markers=(
-      "status","how is","what is","summarize","summary","advise",
-      "recommend","continue the current operation","resume the current operation",
-    )
-    requested=768 if any(marker in text for marker in simple_markers) else 2048
-    return min(requested,ceo.current_model.max_output_tokens)
+    return min(2048,ceo.current_model.max_output_tokens)
 
 def founder_request(ceo,request):
     prompt=ceo.system_instructions+"\nCEO_FOUNDER_REQUEST\nReturn only strict JSON using ADVISORY, OPERATION_PLAN, OPERATION_FOLLOW_UP, PROJECT_ACTION, or STATUS_QUERY. Use OPERATION_PLAN for a genuinely new internal objective. Use OPERATION_FOLLOW_UP when the Founder asks to continue the current approved Operation. Never execute new authority before Founder approval. Never mutate authority."

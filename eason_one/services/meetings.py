@@ -300,7 +300,7 @@ def resume(meeting):
 
 def auto_state(meeting):
     tokens,cost=usage(meeting)
-    calls=AgentRun.query.filter_by(meeting_id=meeting.id).count()
+    calls=confirmed_provider_calls(meeting)
     latest_message=MeetingMessage.query.filter_by(meeting_id=meeting.id).order_by(MeetingMessage.id.desc()).first()
     latest_step=MeetingStep.query.filter(MeetingStep.meeting_id==meeting.id,MeetingStep.status=="SUCCEEDED",
       MeetingStep.kind!="HTTP_REQUEST").order_by(MeetingStep.id.desc()).first()
@@ -351,7 +351,7 @@ def result_view(meeting):
       "founder_decisions":minutes.get("founder_decisions_required") or [],
       "unresolved":minutes.get("rejected_or_unresolved") or [],
       "cost_twd":minutes.get("real_cost_twd",str(cost)),"tokens":minutes.get("token_usage",tokens),
-      "calls":minutes.get("provider_calls",AgentRun.query.filter_by(meeting_id=meeting.id).count()),
+      "calls":minutes.get("provider_calls",confirmed_provider_calls(meeting)),
       "recovery":recovery}
 
 def _reserve_step(meeting,key,kind,round_number,employee=None):
@@ -376,9 +376,20 @@ def _finish_step(step,run=None,result=None):
     step.status="SUCCEEDED"; step.agent_run_id=getattr(run,"id",None)
     step.result_json=result; step.finished_at=now(); db.session.commit()
 
-def _fail_step(step,run,error):
+def confirmed_provider_calls(meeting):
+    runs=AgentRun.query.filter_by(meeting_id=meeting.id).all()
+    return sum(bool(run.provider_response_id
+      or run.input_tokens is not None or run.output_tokens is not None
+      or (run.real_cost is not None and Decimal(run.real_cost)>0)) for run in runs)
+
+def _fail_step(meeting,step,run,error):
     step.status="FAILED"; step.agent_run_id=getattr(run,"id",None)
-    step.error_text=str(error); step.finished_at=now(); db.session.commit()
+    step.error_text=str(error); step.finished_at=now()
+    meeting.status="PAUSED"
+    meeting.last_blocked_json={"local_failure":True,"reason":str(error),
+      "run_id":getattr(run,"id",None),
+      "message":"Meeting paused before a provider response; no provider cost was recorded."}
+    db.session.commit()
 
 def _billable(run):
     return bool(run and run.real_cost is not None and Decimal(run.real_cost)>0
@@ -672,7 +683,7 @@ def _route_step(meeting,founder_message_id=None):
         return auto_state(meeting)
     except Exception as exc:
         if _billable(run): _paid_fail_step(meeting,step,run,exc)
-        else: _fail_step(step,run,exc)
+        else: _fail_step(meeting,step,run,exc)
         raise
 
 def _contribution_step(meeting,employee,round_number):
@@ -716,7 +727,7 @@ def _contribution_step(meeting,employee,round_number):
         _finish_step(step,run,result); return auto_state(meeting)
     except Exception as exc:
         if _billable(run): _paid_fail_step(meeting,step,run,exc)
-        else: _fail_step(step,run,exc)
+        else: _fail_step(meeting,step,run,exc)
         raise
 
 def _compact_live_brief(meeting):
@@ -780,7 +791,7 @@ def _auto_synthesis_step(meeting):
         _finish_step(step,run,synthesis); return auto_state(meeting)
     except Exception as exc:
         if _billable(run): _paid_fail_step(meeting,step,run,exc)
-        else: _fail_step(step,run,exc)
+        else: _fail_step(meeting,step,run,exc)
         raise
 
 def _deterministic_minutes(meeting,recovery=None):
@@ -819,7 +830,7 @@ def _deterministic_minutes(meeting,recovery=None):
       "founder_interventions":[row.content for row in interventions],
       "next_action_or_unresolved":(unresolved or ["Founder reviews the bounded recommendation."]),
       "token_usage":tokens,"real_cost_twd":str(cost),
-      "provider_calls":AgentRun.query.filter_by(meeting_id=meeting.id).count()}
+      "provider_calls":confirmed_provider_calls(meeting)}
     if recovery: minutes["recovery"]=recovery
     return minutes
 
@@ -832,7 +843,7 @@ def _economy_close(meeting):
     meeting.status="ENDED"; meeting.ended_at=now()
     db.session.add(MeetingMessage(meeting_id=meeting.id,speaker_type="SYSTEM",round_number=meeting.current_round,
       message_type="SYSTEM",content="Economy Meeting closed deterministically from validated structured contributions."))
-    _finish_step(step,result={"minutes":"deterministic","calls":AgentRun.query.filter_by(meeting_id=meeting.id).count()})
+    _finish_step(step,result={"minutes":"deterministic","calls":confirmed_provider_calls(meeting)})
     return auto_state(meeting)
 
 def next_step(meeting):
@@ -875,7 +886,10 @@ def next_step(meeting):
                 conflict=conflict or data.get("relation")=="DISAGREE" or (
                   data.get("has_material_contribution") and data.get("type") in {"DISAGREEMENT","COUNTEREVIDENCE"})
             except Exception: pass
-        if not conflict:
+        if len(active)<=2:
+            meeting.routing_json={"ready_for_economy_close":True,
+              "reason":"Two-person Economy closes after bounded round-one contributions."}
+        elif not conflict:
             meeting.routing_json={"ready_for_economy_close":True,"reason":"No explicit material conflict."}
     later=MeetingMessage.query.filter_by(meeting_id=meeting.id,round_number=round_number).all()
     if round_number>1:

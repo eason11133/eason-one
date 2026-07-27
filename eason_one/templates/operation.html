@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% block title %}{{operation.title}} · CEO Operation{% endblock %}{% block content %}
+{% extends "base.html" %}{% block title %}{{operation.title}} · CEO Operation{% endblock %}{% block content %}{% set parent_href='/work' %}{% set parent_label='Work' %}{% include "_back_link.html" %}
 <header class="page-header operation-header"><div><span class="eyebrow">CEO-managed operation</span><h1>{{operation.title}}</h1><p>{{operation.objective}}</p></div><span class="status-pill status-{{operation.status|lower}}">{{operation.status|replace('_',' ')}}</span></header>
 <section class="operation-control">
   <div class="operation-summary"><span><small>CEO owner</small><b>{{operation.proposed_by.name}}</b></span><span><small>Current internal step</small><b>{{state.current_step}}</b></span><span><small>Progress</small><b>{{state.done}} / {{state.total}} accepted</b></span><span><small>Budget</small><b>NT$ {{state.actual_cost_twd}} / {{operation.approved_budget_twd}}</b></span><span><small>Remaining</small><b>NT$ {{state.remaining_budget_twd}}</b></span></div>

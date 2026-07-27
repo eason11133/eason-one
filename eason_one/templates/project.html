@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% block content %}
+{% extends "base.html" %}{% block content %}{% set parent_href='/work' %}{% set parent_label='Work' %}{% include "_back_link.html" %}
 <div class="page-header"><div><span class="eyebrow">Project · {{p.status|replace('_',' ')}}</span><h1>{{p.name}}</h1><p>{{p.objective}}</p></div><div class="header-budget"><b>NT$ {{'%.4f'|format(costs)}}</b><small>Real project spend</small></div></div>
 <section class="metrics"><div><b>{{counts.get('DONE',0)}} / {{p.tasks|length}}</b><span>Tasks completed</span></div><div><b>{{p.next_milestone or 'Not set'}}</b><span>Next milestone</span></div><div><b>{{p.owner.name if p.owner else 'CEO'}}</b><span>Owner</span></div></section>
 <div class="dashboard-grid"><section>

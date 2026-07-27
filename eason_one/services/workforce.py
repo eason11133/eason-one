@@ -22,7 +22,7 @@ TEMPLATE_FIELDS = {
 }
 REQUEST_STATES = {
     "REQUESTED", "HR_REVIEW", "FOUNDER_REVIEW", "APPROVED", "REJECTED",
-    "HIRED", "CANCELLED",
+    "HIRED", "CANCELLED", "ASSESSMENT_COMPLETE",
 }
 HR_ASSESSMENT_OUTPUT_CAP = 1536
 
@@ -278,7 +278,8 @@ def assess_request(request):
     request.manager_employee_id=manager.id
     request.recommended_model_config_id=model.id
     request.resource_envelope_json=assessment["resource_envelope"]
-    request.status="FOUNDER_REVIEW"
+    request.status=("FOUNDER_REVIEW" if payload["recommendation"]=="HIRE"
+      else "ASSESSMENT_COMPLETE")
     run.parsed_output_json=payload
     db.session.commit()
     return run
@@ -322,7 +323,8 @@ def review_request(request, *, existing_staff_alternative, recommendation,
     }
     request.hr_assessment_json = assessment
     request.recommended_model_config_id = getattr(recommended_model, "id", None)
-    request.status = "FOUNDER_REVIEW"
+    request.status = ("FOUNDER_REVIEW" if recommendation=="HIRE"
+      else "ASSESSMENT_COMPLETE")
     department=_department(request.talent_template.department_hint if request.talent_template else "Human Resources")
     request.target_department_id=department.id
     request.target_position=request.talent_template.role_title if request.talent_template else request.role_needed
@@ -363,7 +365,8 @@ def _department(hint):
 def approve_hire(request):
     if request.status == "HIRED" and request.created_employee:
         return request.created_employee
-    if request.status != "FOUNDER_REVIEW" or not request.hr_assessment_json:
+    if (request.status != "FOUNDER_REVIEW" or not request.hr_assessment_json
+      or request.hr_assessment_json.get("recommendation")!="HIRE"):
         raise ValueError("HR review is required before Founder approval")
     template = request.talent_template
     role = request.target_position or (template.role_title if template else request.role_needed)
