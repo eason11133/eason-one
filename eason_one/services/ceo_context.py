@@ -81,9 +81,30 @@ def _operation_memory(operation):
         ),
     ]
     if operation.memory_json:
-        lines.append("Persisted operation outcomes: " + json.dumps(
-            operation.memory_json, ensure_ascii=False
-        ))
+        memory = operation.memory_json
+        verification = memory.get("goal_verification") or {}
+        if verification:
+            lines.append(
+                "LATEST GOAL VERIFICATION\n"
+                f"Overall: {verification.get('overall_status', '-')}\n"
+                f"Summary: {verification.get('summary', '-')}\n"
+                f"Recommended remediation: "
+                f"{verification.get('recommended_action', '-')}\n"
+                "Criteria:\n" + "\n".join(
+                    f"- {item.get('status', '-')}: "
+                    f"{item.get('criterion', '-')}; "
+                    f"reason {item.get('reason', '-')}"
+                    for item in verification.get("criteria") or []
+                )
+            )
+        outcomes = {
+            key: value for key, value in memory.items()
+            if key != "goal_verification"
+        }
+        if outcomes:
+            lines.append("Persisted operation outcomes: " + json.dumps(
+                outcomes, ensure_ascii=False
+            ))
     if operation.waiting_reason:
         lines.append("Waiting reason: " + operation.waiting_reason)
     return lines, len(operation.tasks)

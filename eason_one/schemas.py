@@ -11,7 +11,7 @@ CEO_SCHEMA = {"name": "ceo_founder_request", "schema": {
     "type": "object", "additionalProperties": False,
     "required": ["mode", "executive_response", "project", "project_id", "tasks", "operation"],
     "properties": {
-        "mode": {"type": "string", "enum": ["NEW_PROJECT", "PROJECT_ACTION", "STATUS_QUERY", "ADVISORY", "OPERATION_PLAN"]},
+        "mode": {"type": "string", "enum": ["NEW_PROJECT", "PROJECT_ACTION", "STATUS_QUERY", "ADVISORY", "OPERATION_PLAN", "OPERATION_FOLLOW_UP"]},
         "executive_response": {"type": "string"},
         "project": {"anyOf": [
             {"type": "object", "additionalProperties": False, "required": ["name", "objective", "priority"],
@@ -43,6 +43,7 @@ CEO_SCHEMA = {"name": "ceo_founder_request", "schema": {
                  }},
                  "meeting_policy": {"type": "string"},
                  "completion_criteria": {"type": "array", "minItems": 1,
+                                         "maxItems": 12,
                                          "items": {"type": "string"}},
              }},
             {"type": "null"},
@@ -165,6 +166,39 @@ HR_ASSESSMENT_SCHEMA = {"name": "hr_hiring_assessment", "schema": {
         "instructions": {"type": "string"},
     },
 }}
+
+GOAL_VERIFICATION_SCHEMA = {"name": "operation_goal_verification", "schema": {
+    "type": "object", "additionalProperties": False,
+    "required": [
+        "overall_status", "criteria", "summary", "recommended_action",
+    ],
+    "properties": {
+        "overall_status": {"type": "string", "enum": [
+            "SATISFIED", "NOT_SATISFIED", "INSUFFICIENT_EVIDENCE",
+        ]},
+        "criteria": {
+            "type": "array",
+            "items": {
+                "type": "object", "additionalProperties": False,
+                "required": ["criterion", "status", "evidence", "reason"],
+                "properties": {
+                    "criterion": {"type": "string"},
+                    "status": {"type": "string", "enum": [
+                        "SATISFIED", "NOT_SATISFIED",
+                        "INSUFFICIENT_EVIDENCE",
+                    ]},
+                    "evidence": {
+                        "type": "array", "items": {"type": "string"},
+                    },
+                    "reason": {"type": "string"},
+                },
+            },
+        },
+        "summary": {"type": "string"},
+        "recommended_action": {"type": "string"},
+    },
+}}
+
 KNOWLEDGE_CANDIDATE = {
     "type": "object", "additionalProperties": False,
     "required": ["kind", "title", "content", "source_ref", "rationale", "basis_knowledge_ids"],
