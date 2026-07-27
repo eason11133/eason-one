@@ -35,6 +35,10 @@ def _upgrade_v1_database():
         cols={x["name"] for x in inspector.get_columns("model_config")}
         if "max_output_tokens" not in cols: db.session.execute(text("ALTER TABLE model_config ADD COLUMN max_output_tokens INTEGER NOT NULL DEFAULT 1200"))
         if "archived" not in cols: db.session.execute(text("ALTER TABLE model_config ADD COLUMN archived BOOLEAN NOT NULL DEFAULT 0"))
+        db.session.execute(text(
+          "UPDATE model_config SET max_output_tokens=4096 "
+          "WHERE provider_key='openai' AND model_name='gpt-5.6-luna' "
+          "AND max_output_tokens=512"))
     if "agent_run" in inspector.get_table_names():
         cols={x["name"] for x in inspector.get_columns("agent_run")}
         additions={

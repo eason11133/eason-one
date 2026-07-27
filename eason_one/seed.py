@@ -3,6 +3,7 @@ from .extensions import db
 from .models import Company, Department, Position, ModelConfig, Employee, EmployeeModelHistory
 
 def ensure_hr():
+    from .services.workforce import HR_ASSESSMENT_OUTPUT_CAP
     company=Company.query.first()
     if not company: return None
     ceo_office=Department.query.filter_by(name="CEO Office").first()
@@ -30,11 +31,14 @@ def ensure_hr():
         db.session.add(position); db.session.flush()
     employee=Employee.query.filter_by(slug="hr-director").first()
     if not employee:
-        available=ModelConfig.query.filter_by(active=True,archived=False)
+        available=ModelConfig.query.filter_by(active=True,archived=False).filter(
+          ModelConfig.provider_key!="mock",
+          ModelConfig.max_output_tokens>=HR_ASSESSMENT_OUTPUT_CAP)
         luna=(available.filter(
           db.func.lower(ModelConfig.label).like("%gpt-5.6%luna%")).first()
-          or available.filter(ModelConfig.provider_key!="mock").first()
-          or available.first())
+          or available.first()
+          or ModelConfig.query.filter_by(
+            provider_key="mock",active=True,archived=False).first())
         employee=Employee(name="HR Director",slug="hr-director",
           department_id=department.id,position_id=position.id,
           manager_id=getattr(ceo,"id",None),
@@ -48,13 +52,16 @@ def ensure_hr():
               model_config_id=luna.id,reason="Initial HR Director assignment"))
     elif (not employee.current_model or not employee.current_model.active
           or employee.current_model.archived
-          or (employee.current_model.provider_key=="mock"
-              and ModelConfig.query.filter_by(
-                active=True,archived=False).filter(
-                  ModelConfig.provider_key!="mock").first())):
-        available=ModelConfig.query.filter_by(active=True,archived=False)
-        model=(available.filter(ModelConfig.provider_key!="mock").first()
-          or available.first())
+          or employee.current_model.provider_key=="mock"
+          or employee.current_model.max_output_tokens<HR_ASSESSMENT_OUTPUT_CAP):
+        available=ModelConfig.query.filter_by(active=True,archived=False).filter(
+          ModelConfig.provider_key!="mock",
+          ModelConfig.max_output_tokens>=HR_ASSESSMENT_OUTPUT_CAP)
+        model=(available.filter(
+          db.func.lower(ModelConfig.label).like("%gpt-5.6%luna%")).first()
+          or available.first()
+          or ModelConfig.query.filter_by(
+            provider_key="mock",active=True,archived=False).first())
         if model:
             employee.current_model_config_id=model.id
             db.session.add(EmployeeModelHistory(employee_id=employee.id,

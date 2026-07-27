@@ -13,6 +13,7 @@ from eason_one.services.brain import current
 from eason_one.services.ceo import founder_request
 from eason_one.services.ceo_context import compose
 from eason_one.services.contributions import meaningful_total
+from eason_one.services import workforce
 
 
 def _ceo():
@@ -114,12 +115,16 @@ def test_unresolved_failure_survives_unrelated_success_until_acknowledged(
       model_name_snapshot="mock",input_price_snapshot=0,
       output_price_snapshot=0,currency_snapshot="TWD")
     db.session.add_all([failed,success]); db.session.commit()
-    assert command.snapshot()["report"]["unresolved_run"]==failed
+    snapshot=command.snapshot()
+    assert snapshot["report"]["summary"]=="All clear"
+    assert snapshot["unresolved_attention"]==[failed]
     response=client.post(f"/command/failures/{failed.id}/acknowledge")
     assert response.status_code==302
     assert failed.status=="FAILED" and failed.raw_output=='{"partial":'
     assert failed.resolution_status=="ACKNOWLEDGED"
-    assert command.snapshot()["executive_state"]=="IDLE"
+    snapshot=command.snapshot()
+    assert snapshot["report"]["summary"]=="All clear"
+    assert snapshot["unresolved_attention"]==[]
 
 
 def test_non_live_history_is_not_current_context_or_attention(ctx):
@@ -307,3 +312,83 @@ def test_shared_founder_ui_scale_is_defined():
       "--layout-max:1180px","--reading-max:760px","--section-gap:44px",
     ):
         assert token in css
+
+
+def test_legacy_luna_upgrade_preserves_historical_run_and_bootstraps_hr(
+    ctx, monkeypatch
+):
+    ceo=_ceo()
+    luna=ModelConfig(label="OpenAI GPT-5.6 Luna",provider_key="openai",
+      model_name="gpt-5.6-luna",input_price_per_million=1,
+      output_price_per_million=2,currency="TWD",max_output_tokens=512)
+    claude=ModelConfig(label="Claude",provider_key="anthropic",
+      model_name="claude",input_price_per_million=1,
+      output_price_per_million=2,currency="TWD",max_output_tokens=4096)
+    db.session.add_all([luna,claude]); db.session.flush()
+    historical=AgentRun(employee_id=ceo.id,model_config_id=luna.id,
+      purpose="CEO_FOUNDER_REQUEST",user_request="Legacy plan",
+      system_prompt_snapshot="s",context_snapshot="c",raw_output='{"partial":',
+      status="FAILED",failure_reason="OUTPUT_TRUNCATED",
+      effective_max_output_tokens=512,real_cost=Decimal("0.144966"),
+      provider_key_snapshot="openai",model_name_snapshot="gpt-5.6-luna",
+      input_price_snapshot=1,output_price_snapshot=2,currency_snapshot="TWD")
+    db.session.add(historical); db.session.commit()
+    assert luna.max_output_tokens==512
+    from eason_one import _upgrade_v1_database
+    _upgrade_v1_database()
+    db.session.refresh(luna)
+    db.session.refresh(historical)
+    assert luna.max_output_tokens==4096
+    assert historical.status=="FAILED"
+    assert historical.effective_max_output_tokens==512
+    assert historical.real_cost==Decimal("0.144966")
+    hr=ensure_hr()
+    assert hr.active and hr.current_model.provider_key!="mock"
+    assert hr.current_model.max_output_tokens>=workforce.HR_ASSESSMENT_OUTPUT_CAP
+    seen=[]
+    original=workforce.estimate_execution
+    def capture(model,system,context,user,maximum,schema):
+        seen.append(maximum)
+        return original(model,system,context,user,maximum,schema)
+    monkeypatch.setattr(workforce,"estimate_execution",capture)
+    assert workforce.assessment_authorization(hr) is not None
+    assert seen==[workforce.HR_ASSESSMENT_OUTPUT_CAP]
+
+
+def test_hr_execution_uses_same_1536_contract(ctx, monkeypatch):
+    real=ModelConfig(label="Compatible real",provider_key="openai",
+      model_name="compatible",input_price_per_million=1,
+      output_price_per_million=1,currency="TWD",max_output_tokens=4096)
+    db.session.add(real); db.session.commit()
+    hr=ensure_hr()
+    assert hr.current_model==real
+    item=workforce.request_hire(requested_by_type="FOUNDER",
+      role_needed="QA",problem="Find failures",why_now="Now",
+      responsibilities=["Test"],capabilities=["QA"],urgency="MEDIUM",
+      use_frequency="OCCASIONAL")
+    from eason_one.providers import MockProvider
+    monkeypatch.setattr(
+      "eason_one.services.execution.get_provider",lambda _:MockProvider())
+    run=workforce.assess_request(item)
+    assert run.effective_max_output_tokens==1536
+
+
+def test_single_live_project_is_not_implicit_target_context(ctx, monkeypatch):
+    ceo=_ceo()
+    project=Project(name="WildOne",objective="Existing direction",
+      owner_employee_id=ceo.id,environment="LIVE",status="ACTIVE")
+    db.session.add(project); db.session.commit()
+    contexts=[]
+    class Provider:
+        def complete(self,model,system,user,context,maximum,schema=None):
+            contexts.append(context)
+            return ProviderResult(json.dumps({
+              "mode":"STATUS_QUERY","executive_response":"Response",
+              "project":None,"project_id":None,"tasks":[],"operation":None}),1,1)
+    monkeypatch.setattr("eason_one.services.execution.get_provider",lambda _:Provider())
+    founder_request(ceo,"Evaluate a new Learning Evidence business direction.")
+    founder_request(ceo,"How is WildOne going?")
+    founder_request(ceo,"Give me company status.")
+    assert "Project #"+str(project.id) not in contexts[0]
+    assert "Project #"+str(project.id) in contexts[1]
+    assert "Project #"+str(project.id) not in contexts[2]

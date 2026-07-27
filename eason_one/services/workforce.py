@@ -2,7 +2,7 @@ import csv
 import hashlib
 import json
 import re
-from decimal import Decimal
+from decimal import Decimal, ROUND_CEILING
 from pathlib import Path
 
 from ..extensions import db
@@ -24,6 +24,7 @@ REQUEST_STATES = {
     "REQUESTED", "HR_REVIEW", "FOUNDER_REVIEW", "APPROVED", "REJECTED",
     "HIRED", "CANCELLED",
 }
+HR_ASSESSMENT_OUTPUT_CAP = 1536
 
 
 def _list(value, field):
@@ -175,14 +176,19 @@ def estimate_mission_cost(model, input_tokens, output_tokens, calls):
 
 
 def assessment_authorization(hr):
-    if not hr or not hr.current_model:
+    if (not hr or not hr.current_model
+      or not hr.current_model.active or hr.current_model.archived
+      or (hr.current_model.provider_key!="mock"
+          and hr.current_model.max_output_tokens<HR_ASSESSMENT_OUTPUT_CAP)):
         return None
     context="Bounded HR assessment context including workforce, candidates, models, and budgets."
     estimate=estimate_execution(
         hr.current_model,hr.system_instructions,context,
-        "Assess one governed HiringRequest",hr.current_model.max_output_tokens,
+        "Assess one governed HiringRequest",
+        min(HR_ASSESSMENT_OUTPUT_CAP,hr.current_model.max_output_tokens),
         HR_ASSESSMENT_SCHEMA)
-    return estimate.real_cost
+    return Decimal(estimate.real_cost).quantize(
+      Decimal("0.0001"),rounding=ROUND_CEILING)
 
 
 def _assessment_context(request):
@@ -237,7 +243,9 @@ def assess_request(request):
       project=__import__("eason_one.models",fromlist=["Project"]).Project.query.get(request.project_id) if request.project_id else None,
       operation=operation,context_override=context,
       system_prompt_override=hr.system_instructions+"\nHR_ASSESSMENT\nReturn one strict workforce recommendation. Application code computes all currency arithmetic.",
-      response_schema=HR_ASSESSMENT_SCHEMA)
+      response_schema=HR_ASSESSMENT_SCHEMA,
+      max_output_tokens_override=min(
+        HR_ASSESSMENT_OUTPUT_CAP,hr.current_model.max_output_tokens))
     if run.status!="SUCCEEDED":
         raise ValueError(run.error_text or "HR assessment failed")
     payload=json.loads(run.raw_output)

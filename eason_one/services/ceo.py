@@ -106,7 +106,11 @@ def founder_request(ceo,request):
     lowered=request.lower()
     project=next((item for item in projects if item.name.lower() in lowered),None)
     if not project and operation: project=operation.project
-    if not project and len(projects)==1: project=projects[0]
+    explicit_project_follow_up=any(phrase in lowered for phrase in (
+      "continue project","continue the project","add task to the project",
+      "add task and continue project"))
+    if not project and explicit_project_follow_up and len(projects)==1:
+        project=projects[0]
     composed=__import__("eason_one.services.ceo_context",fromlist=["compose"]).compose(
       ceo,founder_request=request,operation=operation,project=project)
     # CEO_FOUNDER_REQUEST can produce the largest structured contract in V1.

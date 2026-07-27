@@ -2,7 +2,7 @@
 {% macro render_tree(node,root=false) %}{% set item=node.view %}<article class="personnel-tree" data-tree-root="{{item.employee.id}}">{% include "_employee_card.html" %}{% if node.reports %}<div class="direct-reports">{% for report in node.reports %}{{render_tree(report)}}{% endfor %}</div>{% endif %}</article><!-- personnel-tree:{{item.employee.id}} -->{% endmacro %}
 <header class="page-header organization-header"><div><span class="eyebrow">Team</span><h1>Your organization</h1><p>People, reporting relationships, and the work moving through your Company.</p></div><span class="organization-count">{{(snapshot.groups|map(attribute='members')|map('length')|sum) + (1 if snapshot.ceo else 0) + snapshot.ungrouped|length}} people</span></header>
 <section class="org-chart"><div class="org-tree">
-  {% if snapshot.ceo %}<div class="org-executive"><span class="org-level">Executive office</span>{% set item=snapshot.ceo %}{% include "_employee_card.html" %}</div>{% endif %}
+  {% if snapshot.ceo %}<div class="org-executive"><span class="org-level">CEO Office</span>{% set item=snapshot.ceo %}{% include "_employee_card.html" %}</div>{% endif %}
   <div class="reporting-line org-spine" aria-hidden="true"></div>
   <div class="org-departments">
     {% for branch in snapshot.branches %}<section class="org-branch department-zone" data-department-id="{{branch.view.employee.department_id or ''}}"><header><small>Department</small><h2>{{branch.view.employee.department.name if branch.view.employee.department else 'CEO Office'}}</h2></header><span class="reporting-line branch-connector"></span>{{render_tree(branch,true)}}</section>{% endfor %}

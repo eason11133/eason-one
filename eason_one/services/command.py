@@ -269,7 +269,10 @@ def snapshot():
       ["PLANNED","WAITING_FOR_FOUNDER","RUNNING","PAUSED"])).order_by(
       Operation.updated_at.desc()).first()
     latest_interaction=_conversation()[-1] if _conversation() else None
-    if unresolved:
+    latest_run=latest_interaction["run"] if latest_interaction else None
+    latest_is_unresolved=(
+      unresolved and latest_run and unresolved.id==latest_run.id)
+    if latest_is_unresolved:
         cost=Decimal(unresolved.real_cost or 0)
         partial=_safe_partial_response(unresolved)
         report={"headline":"A Founder request needs recovery.",
@@ -281,6 +284,19 @@ def snapshot():
           "why_founder":"A paid Founder request failed before valid authority could be created.",
           "after_decision":"The CEO will use a new explicit request; the historical paid response remains auditable.",
           "operation":None,"unresolved_run":unresolved}
+    elif latest_interaction and latest_run.status=="SUCCEEDED" and not operation:
+        report={"headline":"CEO response",
+          "summary":latest_interaction["ceo"],
+          "next_move":"Continue the conversation or approve proposed work when shown.",
+          "risk":None,"requires_founder":bool(attention),
+          "decision_needed":attention[0]["summary"] if attention else None,
+          "why_founder":(
+            "A separate item requires existing Founder authority."
+            if attention else None),
+          "after_decision":(
+            "I will continue the governed Company path."
+            if attention else None),
+          "operation":None}
     elif attention and not operation:
         brief=_brief(active,attention,recent_tasks,recent_meetings)
         report={"headline":brief["title"],"summary":brief["summary"],
@@ -290,12 +306,6 @@ def snapshot():
           "why_founder":"This item requires existing Founder authority.",
           "after_decision":"I will continue the governed Company path.",
           "operation":None}
-    elif latest_interaction and latest_interaction["run"].status=="SUCCEEDED" and not operation:
-        report={"headline":"CEO response",
-          "summary":latest_interaction["ceo"],
-          "next_move":"Continue the conversation or approve proposed work when shown.",
-          "risk":None,"requires_founder":False,"decision_needed":None,
-          "why_founder":None,"after_decision":None,"operation":None}
     elif operation:
         report=_operation_report(operation)
     else:
@@ -320,7 +330,9 @@ def snapshot():
       "recent_meetings":recent_meetings,"meetings":meetings,"activity":_activity(),
       "conversation":_conversation(),"brief":_brief(active,attention,recent_tasks,recent_meetings),
       "report":report,"recent_operation":recent_operation,
-      "executive_state":("UNRESOLVED_FAILURE" if unresolved else
+      "unresolved_attention":(
+        [unresolved] if unresolved and not latest_is_unresolved else []),
+      "executive_state":("UNRESOLVED_FAILURE" if latest_is_unresolved else
         "FOUNDER_ATTENTION" if report["requires_founder"] else
         "ACTIVE_WORK" if operation or active else "IDLE")}
 
