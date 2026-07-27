@@ -56,6 +56,10 @@ def _upgrade_v1_database():
         if "structured_validation_status" not in cols: db.session.execute(text("ALTER TABLE agent_run ADD COLUMN structured_validation_status VARCHAR(30)"))
         if "structured_validation_warnings_json" not in cols: db.session.execute(text("ALTER TABLE agent_run ADD COLUMN structured_validation_warnings_json JSON"))
         if "structured_validation_errors_json" not in cols: db.session.execute(text("ALTER TABLE agent_run ADD COLUMN structured_validation_errors_json JSON"))
+        if "resolution_status" not in cols: db.session.execute(text("ALTER TABLE agent_run ADD COLUMN resolution_status VARCHAR(30)"))
+        if "resolved_at" not in cols: db.session.execute(text("ALTER TABLE agent_run ADD COLUMN resolved_at DATETIME"))
+        if "resolution_note" not in cols: db.session.execute(text("ALTER TABLE agent_run ADD COLUMN resolution_note TEXT"))
+        if "replacement_run_id" not in cols: db.session.execute(text("ALTER TABLE agent_run ADD COLUMN replacement_run_id INTEGER REFERENCES agent_run(id)"))
     if "work_message" in inspector.get_table_names():
         cols={x["name"] for x in inspector.get_columns("work_message")}
         if "agent_run_id" not in cols: db.session.execute(text("ALTER TABLE work_message ADD COLUMN agent_run_id INTEGER REFERENCES agent_run(id)"))

@@ -5,7 +5,7 @@
   {% if snapshot.ceo %}<div class="org-executive"><span class="org-level">Executive office</span>{% set item=snapshot.ceo %}{% include "_employee_card.html" %}</div>{% endif %}
   <div class="reporting-line org-spine" aria-hidden="true"></div>
   <div class="org-departments">
-    {% for branch in snapshot.branches %}<section class="org-branch department-zone" data-department-id="{{branch.view.employee.department_id or ''}}"><header><small>Department</small><h2>{{branch.view.employee.department.name if branch.view.employee.department else 'Company Office'}}</h2></header><span class="reporting-line branch-connector"></span>{{render_tree(branch,true)}}</section>{% endfor %}
+    {% for branch in snapshot.branches %}<section class="org-branch department-zone" data-department-id="{{branch.view.employee.department_id or ''}}"><header><small>Department</small><h2>{{branch.view.employee.department.name if branch.view.employee.department else 'CEO Office'}}</h2></header><span class="reporting-line branch-connector"></span>{{render_tree(branch,true)}}</section>{% endfor %}
   </div>
 </div></section>
 <section class="people-operations"><header><div><span class="eyebrow">PEOPLE OPERATIONS</span><h2>Workforce governance</h2><p>Hiring requests and candidate templates remain separate from active headcount.</p></div><a class="secondary-action" href="/team/hr">Open HR →</a></header>

@@ -53,3 +53,43 @@ body{background:radial-gradient(circle at 70% 0,rgba(85,214,255,.07),transparent
 @media(max-width:760px){.operation-authority,.people-operations>header{display:grid}.operation-authority form,.operation-authority a{margin-left:0}.people-metrics{grid-template-columns:1fr 1fr}.hr-row{display:grid}}
 .operation-control{display:grid;gap:24px}.operation-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border-soft)}.operation-summary span{padding:16px;background:var(--surface-1)}.operation-summary small,.operation-summary b{display:block}.operation-summary small{color:var(--text-muted)}.operation-report{padding:24px;background:var(--surface-2);border-left:2px solid var(--accent)}.operation-report h2{margin:5px 0}.operation-tasks{display:grid;gap:1px;background:var(--border-soft)}.operation-tasks article{padding:18px;background:var(--surface-1)}.operation-tasks article h3,.operation-tasks article p{margin:5px 0}
 @media(max-width:760px){.operation-summary{grid-template-columns:1fr 1fr}}
+
+/* Dogfood Repair 001: shared Founder reading and spacing system. */
+:root{
+  --font-meta:11px;
+  --font-label:13px;
+  --font-body:15px;
+  --font-h3:18px;
+  --font-h2:22px;
+  --font-h1:30px;
+  --layout-max:1180px;
+  --reading-max:760px;
+  --section-gap:44px;
+  --card-padding:24px;
+}
+.app-main{max-width:none}
+.app-main>header,.app-main>section,.app-main>details,.app-main>main{
+  width:min(100%,var(--layout-max));
+  margin-left:auto;
+  margin-right:auto;
+}
+body{font-size:var(--font-body);line-height:1.62}
+.page-header h1,header h1{font-size:var(--font-h1);line-height:1.2}
+h2,.operations-title h2,.command-lower h2{font-size:var(--font-h2);line-height:1.3}
+h3,.work-card h3,.system-card h2{font-size:var(--font-h3);line-height:1.35}
+.eyebrow,label,.status-pill,small{line-height:1.4}
+.eyebrow{font-size:var(--font-meta)}
+label{font-size:var(--font-label)}
+.page-header p,.executive-summary,.operation-main p,.hr-row p{
+  max-width:var(--reading-max);
+}
+.work-section,.hr-section,.department-section{margin-block:var(--section-gap)}
+.surface,.panel,.hero,.task,.details-panel{padding:var(--card-padding)}
+.audit-row,pre,.event-item small,.operation-state small{
+  font-size:var(--font-meta);
+  line-height:1.4;
+}
+@media(max-width:760px){
+  :root{--font-h1:27px;--font-h2:20px;--font-h3:17px;
+    --section-gap:34px;--card-padding:20px}
+}

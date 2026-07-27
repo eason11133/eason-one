@@ -56,6 +56,33 @@ def command_center():
     if request.method=="POST": return _command_submit()
     return render_template("command.html",snapshot=command_service.snapshot())
 
+@bp.route("/command/failures/<int:id>/acknowledge",methods=["POST"])
+def command_failure_acknowledge(id):
+    run=AgentRun.query.get_or_404(id)
+    try:
+        command_service.resolve_founder_failure(
+          run,"ACKNOWLEDGED",request.form.get("note") or "Founder acknowledged")
+        flash("The unresolved request was acknowledged; its audit remains unchanged.","ok")
+    except Exception as ex:
+        flash(str(ex),"error")
+    return redirect(url_for("main.command_center"))
+
+@bp.route("/command/failures/<int:id>/replace",methods=["POST"])
+def command_failure_replace(id):
+    failed=AgentRun.query.get_or_404(id)
+    try:
+        replacement,_=founder_request(
+          Employee.query.filter_by(slug="ceo").one(),request.form["request"])
+        if replacement.status!="SUCCEEDED":
+            raise ValueError(
+              "Replacement did not complete; the original remains unresolved")
+        command_service.resolve_founder_failure(
+          failed,"REPLACED","Founder submitted an explicit replacement",
+          replacement)
+    except Exception as ex:
+        flash(str(ex),"error")
+    return redirect(url_for("main.command_center"))
+
 @bp.route("/command/proposals/<int:id>/approve",methods=["POST"])
 def command_approve(id):
     proposal=Proposal.query.get_or_404(id)
@@ -166,11 +193,19 @@ def hiring_request_create():
         service=__import__("eason_one.services.workforce",fromlist=["request_hire","assess_request"])
         item=service.request_hire(
           requested_by_type="FOUNDER",role_needed=request.form["role_needed"],
-          problem=request.form["problem"],why_now=request.form["why_now"],
-          responsibilities=[x.strip() for x in request.form["responsibilities"].splitlines() if x.strip()],
-          capabilities=[x.strip() for x in request.form["capabilities"].splitlines() if x.strip()],
-          urgency=request.form["urgency"],use_frequency=request.form["use_frequency"],
-          talent_template=TalentTemplate.query.get(request.form.get("talent_template_id")))
+          problem=request.form["problem"],
+          why_now=request.form.get("why_now") or "Founder requested HR assessment.",
+          responsibilities=[x.strip() for x in request.form.get(
+            "responsibilities","").splitlines() if x.strip()] or [
+              "Solve the stated capability problem"],
+          capabilities=[x.strip() for x in request.form.get(
+            "capabilities","").splitlines() if x.strip()] or [
+              request.form["role_needed"]],
+          urgency=request.form.get("urgency") or "MEDIUM",
+          use_frequency=request.form.get("use_frequency") or "OCCASIONAL",
+          talent_template=(db.session.get(
+            TalentTemplate,int(request.form["talent_template_id"]))
+            if request.form.get("talent_template_id") else None))
         hr=Employee.query.filter_by(slug="hr-director").one()
         if hr.current_model:
             service.assess_request(item)
@@ -370,7 +405,18 @@ def interview(id):
     return render_template("interview.html",e=e,interview=interview)
 
 @bp.route("/inbox")
-def inbox(): return render_template("inbox.html",proposals=Proposal.query.order_by(Proposal.created_at.desc()).all())
+def inbox():
+    proposals=Proposal.query.order_by(Proposal.created_at.desc()).all()
+    pending=[]
+    history=[]
+    for proposal in proposals:
+        scoped=db.session.get(Project,proposal.project_id) if proposal.project_id else None
+        if (proposal.status=="PENDING"
+          and (not scoped or scoped.environment=="LIVE")):
+            pending.append(proposal)
+        else:
+            history.append(proposal)
+    return render_template("inbox.html",pending=pending,history=history)
 @bp.route("/inbox/<int:id>/materialize",methods=["POST"])
 def materialize(id):
     proposal=Proposal.query.get_or_404(id)

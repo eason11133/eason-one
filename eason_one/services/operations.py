@@ -1079,6 +1079,9 @@ def _goal_verification_step(operation, request_key):
                 "by the supplied persisted evidence. Return only strict JSON."
             ),
             response_schema=GOAL_VERIFICATION_SCHEMA,
+            max_output_tokens_override=min(
+                1600, ceo.current_model.max_output_tokens
+            ),
         )
         step.agent_run_id = run.id
         db.session.commit()

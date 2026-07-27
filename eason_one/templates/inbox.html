@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% block content %}
 <header class="page-header"><div><span class="eyebrow">Governance</span><h1>Founder Inbox</h1><p>Only decisions requiring Founder authority appear first.</p></div></header>
 <section class="surface"><h2>NEEDS YOUR DECISION</h2>
-{% for p in proposals if p.status=='PENDING' %}
+{% for p in pending %}
   {% set kind=p.payload_json.get('type','KNOWLEDGE') %}
   {% set plan=p.payload_json.get('plan',{}) %}
   <article class="task" id="{{p.id}}"><div><span class="status-pill">{{kind|replace('_',' ')|title}}</span><h3>{{(plan.get('project') or {}).get('name') or p.payload_json.get('title') or 'Governed company decision'}}</h3><p>{{plan.get('executive_response') or p.payload_json.get('content') or 'Review the proposed authority before it becomes persistent Company state.'}}</p><small>Founder approval is required because this proposal would create authoritative work or knowledge.</small></div>
@@ -11,6 +11,6 @@
 {% else %}<div class="empty-state"><h3>No decisions waiting.</h3><p>The CEO has not requested additional Founder authority.</p></div>{% endfor %}
 </section>
 <details class="details-panel"><summary>HISTORY</summary>
-{% for p in proposals if p.status!='PENDING' %}<article class="task"><div><b>{{p.payload_json.get('type','KNOWLEDGE')|replace('_',' ')|title}}</b><small>{{p.status}} · {{'Company' if not p.project_id else 'Project #' ~ p.project_id}}</small></div><details><summary>Advanced audit</summary><pre>{{p.payload_json|tojson(indent=2)}}</pre></details></article>{% else %}<p>No reviewed decisions.</p>{% endfor %}
+{% for p in history %}<article class="task"><div><b>{{p.payload_json.get('type','KNOWLEDGE')|replace('_',' ')|title}}</b><small>{{p.status|title}} · {{'Company' if not p.project_id else 'Project #' ~ p.project_id}}</small></div><details><summary>Advanced audit</summary><pre>{{p.payload_json|tojson(indent=2)}}</pre></details></article>{% else %}<p>No reviewed decisions.</p>{% endfor %}
 </details>
 {% endblock %}

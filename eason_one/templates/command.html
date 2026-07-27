@@ -29,7 +29,7 @@
           {% elif operation.status in ['COMPLETED','WAITING_FOR_FOUNDER','PAUSED'] %}<a class="secondary-action" href="/projects/{{operation.project_id}}">Review result →</a>{% endif %}
         </div>
       {% endif %}
-      {% if snapshot.report.unresolved_run %}<a class="secondary-action" href="/runs/{{snapshot.report.unresolved_run.id}}">Review preserved response and cost →</a>{% endif %}
+      {% if snapshot.report.unresolved_run %}<div class="actions"><a class="secondary-action" href="/runs/{{snapshot.report.unresolved_run.id}}">Review preserved response and cost →</a><form method="post" action="/command/failures/{{snapshot.report.unresolved_run.id}}/acknowledge"><button class="secondary">Acknowledge</button></form></div><details><summary>Retry or replace explicitly</summary><form method="post" action="/command/failures/{{snapshot.report.unresolved_run.id}}/replace"><label>Replacement request</label><textarea name="request" required>{{snapshot.report.unresolved_run.user_request}}</textarea><button>Send replacement to CEO</button></form></details>{% endif %}
     </article>
     <!-- Legacy structural contract markers only; the retired dashboard regions are not rendered.
          id="active-company"

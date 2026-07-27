@@ -5,6 +5,19 @@ from .models import Company, Department, Position, ModelConfig, Employee, Employ
 def ensure_hr():
     company=Company.query.first()
     if not company: return None
+    ceo_office=Department.query.filter_by(name="CEO Office").first()
+    if not ceo_office:
+        ceo_office=Department(
+          name="CEO Office",
+          description="Founder interface, executive coordination, and assurance.")
+        db.session.add(ceo_office); db.session.flush()
+    ceo=Employee.query.filter_by(slug="ceo").first()
+    if ceo and ceo.department_id is None:
+        ceo.department_id=ceo_office.id
+    for executive in Employee.query.filter(
+      Employee.department_id.is_(None)).all():
+        if executive.slug in {"critic"}:
+            executive.department_id=ceo_office.id
     department=Department.query.filter_by(name="Human Resources").first()
     if not department:
         department=Department(name="Human Resources",
@@ -17,7 +30,6 @@ def ensure_hr():
         db.session.add(position); db.session.flush()
     employee=Employee.query.filter_by(slug="hr-director").first()
     if not employee:
-        ceo=Employee.query.filter_by(slug="ceo").first()
         available=ModelConfig.query.filter_by(active=True,archived=False)
         luna=(available.filter(
           db.func.lower(ModelConfig.label).like("%gpt-5.6%luna%")).first()
@@ -47,6 +59,8 @@ def ensure_hr():
             employee.current_model_config_id=model.id
             db.session.add(EmployeeModelHistory(employee_id=employee.id,
               model_config_id=model.id,reason="Restored operational HR assessment model"))
+    employee.active=True
+    employee.employment_status="ACTIVE"
     db.session.commit()
     return employee
 

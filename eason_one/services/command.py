@@ -92,9 +92,39 @@ def _attention():
     return sorted(items,key=lambda item:item["created_at"],reverse=True)
 
 def _unresolved_founder_failure():
-    latest=AgentRun.query.filter_by(purpose="CEO_FOUNDER_REQUEST").order_by(
-      AgentRun.started_at.desc()).first()
-    return latest if latest and latest.status=="FAILED" else None
+    return AgentRun.query.filter(
+      AgentRun.purpose=="CEO_FOUNDER_REQUEST",
+      AgentRun.status=="FAILED",
+      AgentRun.resolution_status.is_(None),
+      AgentRun.real_cost>0,
+    ).order_by(AgentRun.started_at.desc()).first()
+
+def unresolved_founder_failures():
+    return AgentRun.query.filter(
+      AgentRun.purpose=="CEO_FOUNDER_REQUEST",
+      AgentRun.status=="FAILED",
+      AgentRun.resolution_status.is_(None),
+      AgentRun.real_cost>0,
+    ).order_by(AgentRun.started_at.desc()).all()
+
+def resolve_founder_failure(run, status, note=None, replacement=None):
+    from ..models import now
+    if run.purpose!="CEO_FOUNDER_REQUEST" or run.status!="FAILED":
+        raise ValueError("Only a failed Founder request can be resolved")
+    if run.resolution_status:
+        raise ValueError("Founder request failure is already resolved")
+    if status not in {"ACKNOWLEDGED","REPLACED"}:
+        raise ValueError("Unknown Founder failure resolution")
+    if status=="REPLACED" and (
+      not replacement or replacement.status!="SUCCEEDED"
+    ):
+        raise ValueError("Replacement must succeed before resolution")
+    run.resolution_status=status
+    run.resolved_at=now()
+    run.resolution_note=note
+    run.replacement_run_id=getattr(replacement,"id",None)
+    db.session.commit()
+    return run
 
 def _safe_partial_response(run):
     if not run or not run.raw_output:
@@ -310,8 +340,7 @@ def work_snapshot():
       "recent_meetings":Meeting.query.join(Project,Meeting.project_id==Project.id).filter(
         Project.environment=="LIVE",Meeting.status.in_(["ENDED","TERMINATED_BY_FOUNDER"])).order_by(Meeting.ended_at.desc()).limit(6).all(),
       "operations":Operation.query.order_by(Operation.updated_at.desc()).all(),
-      "unresolved_events":([_unresolved_founder_failure()]
-        if _unresolved_founder_failure() else [])}
+      "unresolved_events":unresolved_founder_failures()}
 
 def team_snapshot():
     employees=Employee.query.order_by(Employee.id).all()

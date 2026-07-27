@@ -61,8 +61,8 @@ def _working_memory(founder_request=None, operation=None, project=None):
     lines = []
     for run in reversed(runs):
         if run.project_id:
-            project=db.session.get(Project,run.project_id)
-            if project and project.environment!="LIVE":
+            run_project=db.session.get(Project,run.project_id)
+            if run_project and run_project.environment!="LIVE":
                 continue
         scoped_relevant=(
           (operation and run.operation_id==operation.id)

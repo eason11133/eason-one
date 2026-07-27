@@ -3,8 +3,8 @@ from decimal import Decimal
 
 from eason_one.extensions import db
 from eason_one.models import (
-    AgentRun, CostEvent, Employee, KnowledgeItem, Meeting, ModelConfig,
-    Operation, Project, Proposal, Task,
+    AgentRun, ContributionEvent, CostEvent, Employee, KnowledgeItem, Meeting,
+    MeetingStep, ModelConfig, Operation, Project, Proposal, Task,
 )
 from eason_one.providers import ProviderResult
 from eason_one.seed import ensure_hr
@@ -49,6 +49,26 @@ def test_ceo_operation_plan_uses_purpose_aware_output_budget(ctx, monkeypatch):
     assert operation.status=="PLANNED"
 
 
+def test_simple_and_structured_founder_requests_use_distinct_caps(
+    ctx, monkeypatch
+):
+    ceo=_ceo()
+    ceo.current_model.max_output_tokens=4096
+    db.session.commit()
+    seen=[]
+    class Provider:
+        def complete(self, model, system, user, context, maximum, schema=None):
+            seen.append(maximum)
+            payload=({"mode":"STATUS_QUERY","executive_response":"All clear.",
+              "project":None,"project_id":None,"tasks":[],"operation":None}
+              if "status" in user.lower() else _operation_plan())
+            return ProviderResult(json.dumps(payload),20,20)
+    monkeypatch.setattr("eason_one.services.execution.get_provider",lambda _:Provider())
+    founder_request(ceo,"Give me company status")
+    founder_request(ceo,"Prepare a realistic multi-task learning operation")
+    assert seen==[768,2048]
+
+
 def test_truncated_paid_founder_request_is_preserved_without_ghost_state(
     ctx, monkeypatch
 ):
@@ -74,6 +94,32 @@ def test_truncated_paid_founder_request_is_preserved_without_ghost_state(
     assert snapshot["executive_state"]=="UNRESOLVED_FAILURE"
     assert "Useful partial advice" in snapshot["report"]["summary"]
     assert command.work_snapshot()["unresolved_events"]==[run]
+
+
+def test_unresolved_failure_survives_unrelated_success_until_acknowledged(
+    client, ctx
+):
+    ceo=_ceo()
+    failed=AgentRun(employee_id=ceo.id,model_config_id=ceo.current_model.id,
+      purpose="CEO_FOUNDER_REQUEST",user_request="Create plan",
+      system_prompt_snapshot="s",context_snapshot="c",raw_output='{"partial":',
+      status="FAILED",failure_reason="OUTPUT_TRUNCATED",real_cost=Decimal(".10"),
+      provider_key_snapshot="openai",model_name_snapshot="paid",
+      input_price_snapshot=1,output_price_snapshot=1,currency_snapshot="TWD")
+    success=AgentRun(employee_id=ceo.id,model_config_id=ceo.current_model.id,
+      purpose="CEO_FOUNDER_REQUEST",user_request="Company status",
+      system_prompt_snapshot="s",context_snapshot="c",raw_output="{}",
+      parsed_output_json={"mode":"STATUS_QUERY","executive_response":"All clear"},
+      status="SUCCEEDED",real_cost=0,provider_key_snapshot="mock",
+      model_name_snapshot="mock",input_price_snapshot=0,
+      output_price_snapshot=0,currency_snapshot="TWD")
+    db.session.add_all([failed,success]); db.session.commit()
+    assert command.snapshot()["report"]["unresolved_run"]==failed
+    response=client.post(f"/command/failures/{failed.id}/acknowledge")
+    assert response.status_code==302
+    assert failed.status=="FAILED" and failed.raw_output=='{"partial":'
+    assert failed.resolution_status=="ACKNOWLEDGED"
+    assert command.snapshot()["executive_state"]=="IDLE"
 
 
 def test_non_live_history_is_not_current_context_or_attention(ctx):
@@ -102,6 +148,27 @@ def test_non_live_history_is_not_current_context_or_attention(ctx):
     assert command.employee_view(ceo)["current_work"] is None
 
 
+def test_context_keeps_only_target_project_or_active_operation_history(ctx):
+    ceo=_ceo()
+    target=Project(name="Target Learning",objective="Target",
+      owner_employee_id=ceo.id,environment="LIVE")
+    unrelated=Project(name="Other Live",objective="Other",
+      owner_employee_id=ceo.id,environment="LIVE")
+    db.session.add_all([target,unrelated]); db.session.flush()
+    for project,text in ((target,"TARGET MEMORY"),(unrelated,"UNRELATED MEMORY")):
+        db.session.add(AgentRun(employee_id=ceo.id,project_id=project.id,
+          model_config_id=ceo.current_model.id,purpose="CEO_FOUNDER_REQUEST",
+          user_request=text,system_prompt_snapshot="s",context_snapshot="c",
+          raw_output="{}",parsed_output_json={"executive_response":text},
+          status="SUCCEEDED",provider_key_snapshot="mock",
+          model_name_snapshot="mock",input_price_snapshot=0,
+          output_price_snapshot=0,currency_snapshot="TWD"))
+    db.session.commit()
+    text=compose(ceo,founder_request="Continue Target Learning",
+      project=target).text
+    assert "TARGET MEMORY" in text and "UNRELATED MEMORY" not in text
+
+
 def test_command_centers_latest_response_and_work_failure(client, ctx):
     ceo=_ceo()
     run=AgentRun(employee_id=ceo.id,model_config_id=ceo.current_model_config_id,
@@ -127,6 +194,8 @@ def test_planned_meeting_redirects_to_visible_zero_call_state(client, ctx):
     assert response.location.endswith(f"/meetings/{meeting.id}")
     assert meeting.status=="PLANNED" and AgentRun.query.count()==0
     assert "PLANNED / READY TO START" in client.get("/meetings").get_data(as_text=True)
+    client.get(response.location)
+    assert Meeting.query.count()==1 and AgentRun.query.count()==0
 
 
 def test_hr_reuses_existing_real_model_and_ui_is_founder_readable(client, ctx):
@@ -142,6 +211,21 @@ def test_hr_reuses_existing_real_model_and_ui_is_founder_readable(client, ctx):
     assert "Advanced staffing context" in page
     assert "Low — can wait" in page
     assert "No verified candidates are currently available." in page
+
+
+def test_two_field_hr_request_is_accepted_without_staffing_schema(
+    client, ctx
+):
+    response=client.post("/team/hr/requests",data={
+      "role_needed":"Product quality / QA",
+      "problem":"Identify failures before the Founder encounters them.",
+    })
+    assert response.status_code==302
+    request=__import__(
+      "eason_one.models",fromlist=["HiringRequest"]).HiringRequest.query.one()
+    assert request.role_needed=="Product quality / QA"
+    assert request.hr_agent_run_id is not None
+    assert Employee.query.filter_by(hiring_request_id=request.id).count()==0
 
 
 def test_inbox_and_brain_scope_and_contribution_truth(client, ctx):
@@ -169,3 +253,57 @@ def test_inbox_and_brain_scope_and_contribution_truth(client, ctx):
     inbox=client.get("/inbox").get_data(as_text=True)
     assert inbox.index("Pending") < inbox.index("HISTORY")
     assert "Advanced audit" in inbox
+
+
+def test_non_live_pending_proposal_is_history_not_current_authority(
+    client, ctx
+):
+    ceo=_ceo()
+    legacy=Project(name="Beauty Legacy",objective="Old",
+      owner_employee_id=ceo.id,environment="SMOKE")
+    db.session.add(legacy); db.session.flush()
+    run=AgentRun(employee_id=ceo.id,project_id=legacy.id,
+      model_config_id=ceo.current_model.id,purpose="TASK_EXECUTION",
+      user_request="Old",system_prompt_snapshot="s",context_snapshot="c",
+      status="SUCCEEDED",provider_key_snapshot="mock",model_name_snapshot="mock",
+      input_price_snapshot=0,output_price_snapshot=0,currency_snapshot="TWD")
+    db.session.add(run); db.session.flush()
+    db.session.add(Proposal(project_id=legacy.id,agent_run_id=run.id,
+      proposed_by_employee_id=ceo.id,payload_json={
+        "type":"KNOWLEDGE","title":"Legacy Beauty Proposal"},
+      status="PENDING"))
+    db.session.commit()
+    page=client.get("/inbox").get_data(as_text=True)
+    primary=page.split("HISTORY",1)[0]
+    assert "Legacy Beauty Proposal" not in primary
+    assert "Legacy Beauty Proposal" in page.split("HISTORY",1)[1]
+
+
+def test_contribution_counts_completed_and_recovered_work_not_failures(ctx):
+    ceo=_ceo()
+    db.session.add(ContributionEvent(employee_id=ceo.id,scope="COMPANY",
+      event_type="TASK_ACCEPTED",value=1,reason="Accepted Task",
+      related_task_id=None,related_reference="task:1",status="FINAL"))
+    succeeded=AgentRun(employee_id=ceo.id,model_config_id=ceo.current_model.id,
+      purpose="MEETING_CONTRIBUTION",user_request="Contribute",
+      system_prompt_snapshot="s",context_snapshot="c",raw_output="{}",
+      status="SUCCEEDED",provider_key_snapshot="mock",model_name_snapshot="mock",
+      input_price_snapshot=0,output_price_snapshot=0,currency_snapshot="TWD")
+    failed=AgentRun(employee_id=ceo.id,model_config_id=ceo.current_model.id,
+      purpose="CEO_FOUNDER_REQUEST",user_request="Failed",
+      system_prompt_snapshot="s",context_snapshot="c",raw_output="",
+      status="FAILED",real_cost=1,provider_key_snapshot="openai",
+      model_name_snapshot="paid",input_price_snapshot=1,
+      output_price_snapshot=1,currency_snapshot="TWD")
+    db.session.add_all([succeeded,failed]); db.session.commit()
+    assert meaningful_total(ceo.id)==2
+
+
+def test_shared_founder_ui_scale_is_defined():
+    css=open("eason_one/static/app.css",encoding="utf-8").read()
+    for token in (
+      "--font-meta:11px","--font-label:13px","--font-body:15px",
+      "--font-h3:18px","--font-h2:22px","--font-h1:30px",
+      "--layout-max:1180px","--reading-max:760px","--section-gap:44px",
+    ):
+        assert token in css
