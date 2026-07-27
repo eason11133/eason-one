@@ -101,12 +101,35 @@ class MockProvider:
               "redundancy_risk":"LOW","alternatives":["Use existing staff","Temporary support"],
               "success_criteria":["Three decision-useful assignments"],
               "probation_assignments":3,"instructions":"Perform the approved specialist role and challenge unsupported assumptions."})
+        elif "GOAL_VERIFICATION" in system_prompt:
+            packet=json.loads(context.split("GOAL VERIFICATION EVIDENCE\n",1)[-1])
+            criteria=packet.get("completion_criteria") or []
+            text=json.dumps({
+              "overall_status":"SATISFIED",
+              "criteria":[{
+                "criterion":criterion,"status":"SATISFIED",
+                "evidence":["Completed governed Task and Review records are present."],
+                "reason":"The mocked evidence packet satisfies this criterion."
+              } for criterion in criteria],
+              "summary":"Persisted workflow evidence satisfies the approved objective and criteria.",
+              "recommended_action":"Produce the final Founder report."
+            })
         elif "CEO_FOUNDER_REQUEST" in system_prompt:
             status=any(x in user_prompt.lower() for x in ("how is","status","progress"))
             action=any(x in user_prompt.lower() for x in ("add task","next action","continue project"))
             advisory=(not action and any(x in user_prompt.lower() for x in (
               "what do you think","advise","advice","should i","recommend","?")))
             project_ids=__import__("re").findall(r"Project #(\d+)",context)
+            operation_ids=__import__("re").findall(r"Operation #(\d+)",context)
+            follow_up=any(x in user_prompt.lower() for x in (
+              "continue the current operation","continue this operation",
+              "resume the current operation","proceed with the current operation"))
+            if follow_up and operation_ids:
+                text=json.dumps({"mode":"OPERATION_FOLLOW_UP",
+                  "executive_response":"I will continue the current approved Operation.",
+                  "project":None,"project_id":int(project_ids[-1]) if project_ids else None,
+                  "tasks":[],"operation":None})
+                return ProviderResult(text,len((system_prompt+context+user_prompt).split()),len(text.split()),"mock-local")
             if status:
                 text=json.dumps({"mode":"STATUS_QUERY","executive_response":"The requested project status is summarized from current operating state.",
                     "project":None,"project_id":int(project_ids[-1]) if project_ids else None,"tasks":[],"operation":None})

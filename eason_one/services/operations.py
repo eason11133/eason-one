@@ -1,4 +1,5 @@
 import json
+import hashlib
 from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import func
@@ -8,7 +9,9 @@ from ..models import (
     AgentRun, CostEvent, Employee, HiringRequest, Meeting, Operation,
     OperationStep, Project, Task, WorkMessage, now,
 )
-from ..schemas import CEO_DECISION_SCHEMA, SYNTHESIS_SCHEMA
+from ..schemas import (
+    CEO_DECISION_SCHEMA, GOAL_VERIFICATION_SCHEMA, SYNTHESIS_SCHEMA,
+)
 from .company import remaining as company_remaining
 from .execution import execute
 from . import meetings as meeting_service
@@ -27,6 +30,10 @@ TASK_FIELDS = {
 }
 TERMINAL = {"COMPLETED", "FAILED", "TERMINATED_BY_FOUNDER"}
 OPEN_STEP = {"PROVIDER_CALL_STARTED", "AMBIGUOUS"}
+GOAL_STATUSES = {
+    "SATISFIED", "NOT_SATISFIED", "INSUFFICIENT_EVIDENCE",
+}
+GOAL_EVIDENCE_BUDGET = 16000
 
 
 def normalize_meeting_policy(value):
@@ -83,10 +90,12 @@ def validate_plan(payload):
         if not reviewer or not reviewer.active:
             raise ValueError("Unknown or inactive reviewer")
     criteria = operation["completion_criteria"]
-    if not isinstance(criteria, list) or not criteria or not all(
+    if not isinstance(criteria, list) or not 1 <= len(criteria) <= 12 or not all(
         isinstance(value, str) and value.strip() for value in criteria
     ):
-        raise ValueError("Operation completion criteria are required")
+        raise ValueError(
+            "Operation requires between 1 and 12 completion criteria"
+        )
     return payload
 
 
@@ -204,6 +213,167 @@ def completion_guard(operation):
     return not reasons, reasons
 
 
+def _compact_value(value, string_limit=700, list_limit=12):
+    if isinstance(value, str):
+        return value if len(value) <= string_limit else value[:string_limit - 1] + "…"
+    if isinstance(value, list):
+        return [
+            _compact_value(item, string_limit, list_limit)
+            for item in value[-list_limit:]
+        ]
+    if isinstance(value, dict):
+        return {
+            key: _compact_value(item, string_limit, list_limit)
+            for key, item in value.items()
+        }
+    return value
+
+
+def goal_evidence_packet(operation):
+    completion_criteria = list(
+        operation.plan_json["operation"].get("completion_criteria") or []
+    )
+    if not 1 <= len(completion_criteria) <= 12:
+        raise ValueError(
+            "Goal Verification requires between 1 and 12 approved "
+            "completion criteria"
+        )
+    reviews = AgentRun.query.filter_by(
+        operation_id=operation.id, purpose="TASK_REVIEW", status="SUCCEEDED"
+    ).order_by(AgentRun.id.desc()).all()
+    latest_reviews = {}
+    for run in reviews:
+        if run.task_id not in latest_reviews:
+            latest_reviews[run.task_id] = run
+    memory = operation.memory_json or {}
+    from .brain import current
+    brain = current(operation.project_id)
+    packet = {
+        "founder_objective": operation.objective,
+        "completion_criteria": completion_criteria,
+        "operation": {
+            "id": operation.id,
+            "status": operation.status,
+            "approved_budget_twd": str(operation.approved_budget_twd),
+        },
+        "completed_tasks": [{
+            "task_id": task.id,
+            "title": task.title,
+            "objective": task.objective,
+            "status": task.status,
+            "result": task.result_summary,
+            "acceptance_criteria": task.acceptance_criteria,
+        } for task in operation.tasks if task.status in {"DONE", "CANCELLED"}],
+        "latest_reviews": [{
+            "task_id": task_id,
+            "decision": (run.parsed_output_json or {}).get("decision"),
+            "summary": (run.parsed_output_json or {}).get("summary"),
+            "issues": (run.parsed_output_json or {}).get("issues") or [],
+            "required_changes": (
+                (run.parsed_output_json or {}).get("required_changes") or []
+            ),
+        } for task_id, run in sorted(latest_reviews.items())],
+        "meeting_results": (memory.get("meeting_results") or [])[-4:],
+        "ceo_decisions": [
+            decision for decision in (memory.get("decisions") or [])
+            if decision.get("action") != "COMPLETE"
+        ][-6:],
+        "company_brain_evidence": [{
+            "id": item.id, "kind": item.kind, "title": item.title,
+            "content": item.content,
+        } for item in brain[-12:]],
+    }
+    supporting = {
+        key: value for key, value in packet.items()
+        if key != "completion_criteria"
+    }
+    packet = _compact_value(supporting)
+    packet["completion_criteria"] = completion_criteria
+    serialized = json.dumps(
+        packet, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    )
+    if len(serialized) > GOAL_EVIDENCE_BUDGET:
+        packet = _compact_value(
+            supporting, string_limit=250, list_limit=8
+        )
+        packet["completion_criteria"] = completion_criteria
+        serialized = json.dumps(
+            packet, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+        )
+    if len(serialized) > GOAL_EVIDENCE_BUDGET:
+        packet = _compact_value(
+            supporting, string_limit=80, list_limit=4
+        )
+        packet["completion_criteria"] = completion_criteria
+        serialized = json.dumps(
+            packet, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+        )
+    if len(serialized) > GOAL_EVIDENCE_BUDGET:
+        raise ValueError("Goal verification evidence exceeds bounded context")
+    digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+    return packet, serialized, digest
+
+
+def _validate_goal_verification(payload, criteria):
+    required = {"overall_status", "criteria", "summary", "recommended_action"}
+    if not isinstance(payload, dict) or set(payload) != required:
+        raise ValueError("Invalid Goal Verification fields")
+    if payload["overall_status"] not in GOAL_STATUSES:
+        raise ValueError("Invalid Goal Verification status")
+    if not isinstance(payload["summary"], str) or not payload["summary"].strip():
+        raise ValueError("Goal Verification summary is required")
+    if (
+        not isinstance(payload["recommended_action"], str)
+        or not payload["recommended_action"].strip()
+    ):
+        raise ValueError("Goal Verification recommendation is required")
+    rows = payload["criteria"]
+    if not isinstance(rows, list) or len(rows) != len(criteria):
+        raise ValueError("Goal Verification must assess every criterion")
+    seen = []
+    for row in rows:
+        if not isinstance(row, dict) or set(row) != {
+            "criterion", "status", "evidence", "reason",
+        }:
+            raise ValueError("Invalid Goal Verification criterion fields")
+        if row["status"] not in GOAL_STATUSES:
+            raise ValueError("Invalid criterion status")
+        if (
+            not isinstance(row["evidence"], list)
+            or not all(isinstance(item, str) for item in row["evidence"])
+            or not isinstance(row["reason"], str)
+            or not row["reason"].strip()
+        ):
+            raise ValueError("Invalid Goal Verification criterion evidence")
+        seen.append(row["criterion"])
+    if seen != list(criteria):
+        raise ValueError("Goal Verification criteria do not match approval")
+    if payload["overall_status"] == "SATISFIED" and any(
+        row["status"] != "SATISFIED" for row in rows
+    ):
+        raise ValueError("Satisfied verification contains an unsatisfied criterion")
+    return payload
+
+
+def _persist_goal_verification(operation, payload, digest):
+    memory = dict(operation.memory_json or {})
+    memory["goal_verification"] = {
+        **payload, "evidence_digest": digest,
+    }
+    operation.memory_json = memory
+    db.session.commit()
+
+
+def _current_goal_verification(operation):
+    _, _, digest = goal_evidence_packet(operation)
+    step = OperationStep.query.filter_by(
+        operation_id=operation.id,
+        logical_key=f"goal_verification:{digest}",
+        kind="GOAL_VERIFICATION", status="SUCCEEDED",
+    ).first()
+    return step, digest
+
+
 def _logical_key(operation, kind, task=None, subject=None):
     if task:
         suffix = "review" if kind == "REVIEW" else "execute"
@@ -310,6 +480,22 @@ def _recover_open_step(operation):
             _materialize_task_run(task, run)
         elif step.kind == "REVIEW" and task:
             _materialize_review_run(task, run)
+        elif step.kind == "GOAL_VERIFICATION":
+            payload = run.parsed_output_json or json.loads(run.raw_output)
+            criteria = (
+                operation.plan_json["operation"].get("completion_criteria") or []
+            )
+            payload = _validate_goal_verification(payload, criteria)
+            digest = step.logical_key.split(":", 1)[1]
+            _persist_goal_verification(operation, payload, digest)
+            return _finish(step, run, {
+                "kind": "GOAL_VERIFICATION",
+                "overall_status": payload["overall_status"],
+                "verification": payload,
+                "evidence_digest": digest,
+                "agent_run_id": run.id,
+                "status": "RECOVERED",
+            })
         elif step.kind == "DECISION":
             decision = run.parsed_output_json or json.loads(run.raw_output)
             action = decision.get("action")
@@ -536,11 +722,16 @@ def create_remediation_task(operation, plan, agent_run_id=None):
     blocked = next(
         (item for item in operation.tasks if item.status == "BLOCKED"), None
     )
+    verification = (operation.memory_json or {}).get("goal_verification") or {}
+    verification_requires_work = verification.get(
+        "overall_status"
+    ) in {"NOT_SATISFIED", "INSUFFICIENT_EVIDENCE"}
     if not blocked and not HiringRequest.query.filter_by(
         operation_id=operation.id, status="HIRED"
-    ).first():
+    ).first() and not verification_requires_work:
         raise ValueError(
-            "Remediation Task requires blocked work or an approved capability change"
+            "Remediation Task requires blocked work, an approved capability "
+            "change, or an unsatisfied Goal Verification"
         )
     task = Task(
         operation_id=operation.id, project_id=operation.project_id,
@@ -685,11 +876,7 @@ def _decision_step(operation, request_key, blocked_task=None):
         decision = json.loads(run.raw_output)
         run.parsed_output_json = decision
         action = decision["action"]
-        memory = dict(operation.memory_json or {})
-        decisions = list(memory.get("decisions") or [])
-        decisions.append(decision)
-        memory["decisions"] = decisions
-        operation.memory_json = memory
+        persist_decision = True
         if action == "MEETING":
             if normalize_meeting_policy(
                 operation.plan_json["operation"]["meeting_policy"]
@@ -778,12 +965,38 @@ def _decision_step(operation, request_key, blocked_task=None):
                 raise ValueError(
                     "CEO cannot complete operation: " + "; ".join(reasons)
                 )
-            result = {
-                "kind": "DECISION", "action": action,
-                "agent_run_id": run.id,
-            }
+            verification_step, _ = _current_goal_verification(operation)
+            verification = (
+                (verification_step.result_json or {}).get("verification")
+                if verification_step else None
+            )
+            if (
+                not verification
+                or verification.get("overall_status") != "SATISFIED"
+            ):
+                persist_decision = False
+                result = {
+                    "kind": "DECISION", "action": "COMPLETE_REJECTED",
+                    "requested_action": "COMPLETE",
+                    "reason": (
+                        "Current Goal Verification is not SATISFIED; "
+                        "the Operation remains in remediation."
+                    ),
+                    "agent_run_id": run.id,
+                }
+            else:
+                result = {
+                    "kind": "DECISION", "action": action,
+                    "agent_run_id": run.id,
+                }
         else:
             raise ValueError("Unknown CEO decision action")
+        if persist_decision:
+            memory = dict(operation.memory_json or {})
+            decisions = list(memory.get("decisions") or [])
+            decisions.append(decision)
+            memory["decisions"] = decisions
+            operation.memory_json = memory
         db.session.commit()
         return _finish(step, run, result)
     except Exception as exc:
@@ -824,6 +1037,73 @@ def _hr_step(operation, request, request_key):
         raise
 
 
+def _goal_verification_step(operation, request_key):
+    allowed, reasons = completion_guard(operation)
+    if not allowed:
+        raise ValueError(
+            "Workflow is not ready for Goal Verification: " + "; ".join(reasons)
+        )
+    packet, serialized, digest = goal_evidence_packet(operation)
+    logical = f"goal_verification:{digest}"
+    step, created = _claim(
+        operation, request_key, logical, "GOAL_VERIFICATION"
+    )
+    if not created:
+        if step.status in OPEN_STEP:
+            return _recover_open_step(operation)
+        return _existing_result(step)
+    ceo = db.session.get(Employee, operation.proposed_by_employee_id)
+    _provider_boundary(step)
+    run = None
+    try:
+        run = execute(
+            ceo, "GOAL_VERIFICATION",
+            f"Verify achievement of Operation #{operation.id}",
+            project=operation.project, operation=operation,
+            context_override="GOAL VERIFICATION EVIDENCE\n" + serialized,
+            context_composition={
+                "goal_verification_evidence": {
+                    "characters": len(serialized),
+                    "budget": GOAL_EVIDENCE_BUDGET,
+                    "completed_tasks": len(packet["completed_tasks"]),
+                    "latest_reviews": len(packet["latest_reviews"]),
+                    "meeting_results": len(packet["meeting_results"]),
+                    "brain_items": len(packet["company_brain_evidence"]),
+                    "evidence_digest": digest,
+                },
+            },
+            system_prompt_override=(
+                ceo.system_instructions
+                + "\nGOAL_VERIFICATION\nIndependently assess whether the "
+                "Founder objective and every completion criterion are supported "
+                "by the supplied persisted evidence. Return only strict JSON."
+            ),
+            response_schema=GOAL_VERIFICATION_SCHEMA,
+        )
+        step.agent_run_id = run.id
+        db.session.commit()
+        if run.status != "SUCCEEDED":
+            raise ValueError(run.error_text or "Goal Verification failed")
+        payload = _validate_goal_verification(
+            json.loads(run.raw_output), packet["completion_criteria"]
+        )
+        run.parsed_output_json = payload
+        _persist_goal_verification(operation, payload, digest)
+        return _finish(step, run, {
+            "kind": "GOAL_VERIFICATION",
+            "overall_status": payload["overall_status"],
+            "verification": payload,
+            "evidence_digest": digest,
+            "agent_run_id": run.id,
+        })
+    except Exception as exc:
+        run = run or AgentRun.query.filter_by(
+            operation_id=operation.id, purpose="GOAL_VERIFICATION"
+        ).order_by(AgentRun.id.desc()).first()
+        _mark_paid_or_ambiguous(operation, step, run, exc)
+        raise
+
+
 def _report_step(operation, request_key):
     from .ceo_context import compose
     allowed, reasons = completion_guard(operation)
@@ -832,6 +1112,16 @@ def _report_step(operation, request_key):
             operation, request_key,
             next((task for task in operation.tasks if task.status == "BLOCKED"),
                  None),
+        )
+    verification_step, _ = _current_goal_verification(operation)
+    verification = (
+        (verification_step.result_json or {}).get("verification")
+        if verification_step else None
+    )
+    if not verification or verification.get("overall_status") != "SATISFIED":
+        raise ValueError(
+            "Operation cannot complete without a current SATISFIED "
+            "Goal Verification"
         )
     logical = _logical_key(operation, "REPORT", subject="final")
     step, created = _claim(
@@ -940,6 +1230,15 @@ def next_step(operation, idempotency_key):
     )
     if blocked:
         return _decision_step(operation, idempotency_key, blocked)
+    allowed, _ = completion_guard(operation)
+    if not allowed:
+        return _decision_step(operation, idempotency_key)
+    verification_step, _ = _current_goal_verification(operation)
+    if not verification_step:
+        return _goal_verification_step(operation, idempotency_key)
+    verification = (verification_step.result_json or {}).get("verification") or {}
+    if verification.get("overall_status") != "SATISFIED":
+        return _decision_step(operation, idempotency_key)
     return _report_step(operation, idempotency_key)
 
 

@@ -145,6 +145,10 @@ def test_completed_and_waiting_operations_persist_founder_reports(ctx):
     operation = operations.approve(_operation(ctx))
     operation.tasks[0].status = "DONE"
     db.session.commit()
+    verification = operations.next_step(operation, "goal-verification")
+    assert verification["kind"] == "GOAL_VERIFICATION"
+    assert verification["overall_status"] == "SATISFIED"
+    assert operation.status == "RUNNING"
     result = operations.next_step(operation, "final-report")
     assert result["kind"] == "REPORT"
     assert operation.status == "COMPLETED"

@@ -41,7 +41,8 @@ def ceo():
 def _command_submit():
     try:
         run,proposal=founder_request(Employee.query.filter_by(slug="ceo").one(),request.form["request"])
-        if isinstance(proposal,Operation): flash("CEO proposed a bounded operation. Founder approval is required.","ok")
+        if isinstance(proposal,Operation) and proposal.status=="RUNNING": flash("CEO is continuing the current approved Operation.","ok")
+        elif isinstance(proposal,Operation): flash("CEO proposed a bounded operation. Founder approval is required.","ok")
         elif proposal: flash("CEO proposed governed work. Founder approval is required.","ok")
         elif run.parsed_output_json: flash(run.parsed_output_json["executive_response"],"ok")
         else: flash("CEO output failed validation; no Company state changed.","error")

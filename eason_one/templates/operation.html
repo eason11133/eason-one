@@ -2,29 +2,13 @@
 <header class="page-header operation-header"><div><span class="eyebrow">CEO-managed operation</span><h1>{{operation.title}}</h1><p>{{operation.objective}}</p></div><span class="status-pill status-{{operation.status|lower}}">{{operation.status|replace('_',' ')}}</span></header>
 <section class="operation-control">
   <div class="operation-summary"><span><small>CEO owner</small><b>{{operation.proposed_by.name}}</b></span><span><small>Current internal step</small><b>{{state.current_step}}</b></span><span><small>Progress</small><b>{{state.done}} / {{state.total}} accepted</b></span><span><small>Budget</small><b>NT$ {{state.actual_cost_twd}} / {{operation.approved_budget_twd}}</b></span><span><small>Remaining</small><b>NT$ {{state.remaining_budget_twd}}</b></span></div>
+  {% set verification=(operation.memory_json or {}).get('goal_verification') %}
+  {% if verification %}<article class="operation-report goal-verification"><small>GOAL VERIFICATION</small><h2>{{verification.overall_status|replace('_',' ')}}</h2><p>{{verification.summary}}</p>{% for item in verification.criteria %}<div><b>{{item.status|replace('_',' ')}} · {{item.criterion}}</b>{% if item.evidence %}<p>{{item.evidence|join('; ')}}</p>{% endif %}<small>{{item.reason}}</small></div>{% endfor %}</article>{% endif %}
   {% if operation.founder_report_json %}<article class="operation-report"><small>CEO REPORT</small><h2>{{operation.founder_report_json.headline}}</h2><p>{{operation.founder_report_json.summary}}</p><b>{{operation.founder_report_json.next_move}}</b></article>{% endif %}
   <div class="operation-tasks">{% for task in operation.tasks %}<article><span class="status-pill">{{task.status}}</span><h3>{{task.title}}</h3><p>{{task.objective}}</p><small>{{task.assigned_employee.name}} · review by {{task.reviewer.name}}</small>{% if task.result_summary %}<p>{{task.result_summary}}</p>{% endif %}</article>{% endfor %}</div>
-  {% if operation.status=='RUNNING' %}<div class="primary-controls"><span id="runner-state">CEO operating loop is ready.</span><form method="post" action="/operations/{{operation.id}}/pause"><button class="secondary-action">Pause</button></form><form method="post" action="/operations/{{operation.id}}/stop"><button class="danger">Stop</button></form></div>{% endif %}
+  {% if operation.status=='RUNNING' %}<div class="primary-controls"><span id="runner-state"{% if request.args.get('autorun')=='1' %} data-operation-runner data-operation-id="{{operation.id}}" data-completion-url="/operations/{{operation.id}}"{% endif %}>CEO operating loop is ready.</span><form method="post" action="/operations/{{operation.id}}/pause"><button class="secondary-action">Pause</button></form><form method="post" action="/operations/{{operation.id}}/stop"><button class="danger">Stop</button></form></div>{% endif %}
   {% if operation.status=='WAITING_FOR_FOUNDER' %}<div class="blocked-call"><h2>Founder decision required</h2><p>{{operation.waiting_reason}}</p><p>Approved · NT$ {{operation.founder_report_json.approved_twd}} · Actual · NT$ {{operation.founder_report_json.actual_twd}} · Remaining · NT$ {{operation.founder_report_json.remaining_twd}}</p><form method="post" action="/operations/{{operation.id}}/budget"><input name="additional_budget_twd" type="number" min=".0001" step=".0001" value="{{operation.founder_report_json.maximum_additional_authorization_twd}}"><button>Approve additional budget</button></form><a class="secondary-action" href="/command">Discuss with CEO</a><form method="post" action="/operations/{{operation.id}}/stop"><button class="danger">Stop</button></form></div>{% endif %}
 </section>
 <details class="details-panel founder-override"><summary>FOUNDER OVERRIDE / ADVANCED</summary><p>Manual Task and Review controls remain available on the linked Project.</p><a href="/projects/{{operation.project_id}}">Open Project overrides →</a></details>
-{% if request.args.get('autorun')=='1' and operation.status=='RUNNING' %}<script>
-(() => {
-  let sequence=0, stopped=false;
-  const state=document.getElementById("runner-state");
-  async function advance(){
-    if(stopped) return;
-    const response=await fetch("/operations/{{operation.id}}/next-step",{
-      method:"POST",headers:{"Idempotency-Key":"operation-{{operation.id}}-"+sequence}
-    });
-    const result=await response.json();
-    if(!response.ok){state.textContent=result.error||"CEO operation paused.";return;}
-    sequence+=1;
-    state.textContent="Completed "+result.kind+".";
-    if(result.continue_allowed){advance();}else{window.location.replace("/operations/{{operation.id}}");}
-  }
-  window.addEventListener("beforeunload",()=>{stopped=true});
-  advance();
-})();
-</script>{% endif %}
+{% if request.args.get('autorun')=='1' and operation.status=='RUNNING' %}<script src="{{url_for('static',filename='operation-runner.js')}}"></script>{% endif %}
 {% endblock %}

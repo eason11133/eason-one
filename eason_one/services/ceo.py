@@ -8,7 +8,8 @@ from .company import get_company,spent,remaining
 from .brain import current
 from ..schemas import CEO_SCHEMA,SYNTHESIS_SCHEMA
 
-MODES={"NEW_PROJECT","PROJECT_ACTION","STATUS_QUERY","ADVISORY","OPERATION_PLAN"}
+MODES={"NEW_PROJECT","PROJECT_ACTION","STATUS_QUERY","ADVISORY","OPERATION_PLAN",
+  "OPERATION_FOLLOW_UP"}
 PRIORITIES={"LOW","MEDIUM","HIGH","CRITICAL"}
 TASK_FIELDS={"title","objective","assignee_slug","reviewer_slug","required_output","acceptance_criteria"}
 
@@ -74,13 +75,20 @@ def validate_plan(payload):
     if keys==frozenset(full):
         if payload.get("operation") is not None: raise ValueError("Only OPERATION_PLAN may define an operation")
         if mode=="NEW_PROJECT" and payload["project_id"] is not None: raise ValueError("NEW_PROJECT cannot reference an existing Project")
-        if mode in {"PROJECT_ACTION","STATUS_QUERY","ADVISORY"} and payload["project"] is not None: raise ValueError("Non-project-creation modes cannot define a new Project")
-        if mode in {"STATUS_QUERY","ADVISORY"} and payload["tasks"]: raise ValueError(f"{mode} cannot propose Tasks")
+        if mode in {"PROJECT_ACTION","STATUS_QUERY","ADVISORY","OPERATION_FOLLOW_UP"} and payload["project"] is not None: raise ValueError("Non-project-creation modes cannot define a new Project")
+        if mode in {"STATUS_QUERY","ADVISORY","OPERATION_FOLLOW_UP"} and payload["tasks"]: raise ValueError(f"{mode} cannot propose Tasks")
         if mode=="ADVISORY" and payload["project_id"] is not None: raise ValueError("ADVISORY cannot bind authoritative Project state")
     return payload
 
+
+def _current_operation_follow_up(request):
+    text=" ".join(request.lower().strip().split())
+    starters=("continue","resume","proceed","carry on","keep going")
+    references=("current operation","this operation","the operation")
+    return text.startswith(starters) and any(item in text for item in references)
+
 def founder_request(ceo,request):
-    prompt=ceo.system_instructions+"\nCEO_FOUNDER_REQUEST\nReturn only strict JSON using ADVISORY, OPERATION_PLAN, PROJECT_ACTION, or STATUS_QUERY. Use OPERATION_PLAN for a new internal objective. Never execute before Founder approval. Never mutate authority."
+    prompt=ceo.system_instructions+"\nCEO_FOUNDER_REQUEST\nReturn only strict JSON using ADVISORY, OPERATION_PLAN, OPERATION_FOLLOW_UP, PROJECT_ACTION, or STATUS_QUERY. Use OPERATION_PLAN for a genuinely new internal objective. Use OPERATION_FOLLOW_UP when the Founder asks to continue the current approved Operation. Never execute new authority before Founder approval. Never mutate authority."
     operation=__import__("eason_one.models",fromlist=["Operation"]).Operation.query.filter(
       __import__("eason_one.models",fromlist=["Operation"]).Operation.status.in_(
         ["PLANNED","RUNNING","WAITING_FOR_FOUNDER","PAUSED"])).order_by(
@@ -97,6 +105,25 @@ def founder_request(ceo,request):
     if run.status!="SUCCEEDED": return run,None
     try:
         plan=validate_plan(json.loads(run.raw_output)); run.parsed_output_json=plan
+        active_follow_up=(
+          operation and operation.status=="RUNNING"
+          and (plan["mode"]=="OPERATION_FOLLOW_UP"
+               or _current_operation_follow_up(request)))
+        if active_follow_up:
+            memory=dict(operation.memory_json or {})
+            followups=list(memory.get("founder_followups") or [])
+            followups.append({"instruction":request,
+              "ceo_response":"I will continue the current approved Operation."})
+            memory["founder_followups"]=followups[-6:]
+            operation.memory_json=memory
+            run.parsed_output_json={"mode":"OPERATION_FOLLOW_UP",
+              "executive_response":"I will continue the current approved Operation.",
+              "project":None,"project_id":operation.project_id,
+              "tasks":[],"operation":None}
+            db.session.commit()
+            return run,operation
+        if plan["mode"]=="OPERATION_FOLLOW_UP":
+            raise ValueError("No RUNNING Operation is available to continue")
         if plan["mode"] in {"STATUS_QUERY","ADVISORY"}: db.session.commit(); return run,None
         if plan["mode"]=="OPERATION_PLAN":
             operation=__import__("eason_one.services.operations",fromlist=["propose_operation"]).propose_operation(ceo,plan)

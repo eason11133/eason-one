@@ -16,7 +16,7 @@ include = ["eason_one*"]
 exclude = ["instance*", "tests*"]
 
 [tool.setuptools.package-data]
-eason_one = ["templates/*.html", "static/*.css"]
+eason_one = ["templates/*.html", "static/*.css", "static/*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
