@@ -119,14 +119,15 @@ def test_unresolved_failure_survives_unrelated_success_until_acknowledged(
     db.session.add_all([failed,success]); db.session.commit()
     snapshot=command.snapshot()
     assert snapshot["report"]["summary"]=="All clear"
-    assert snapshot["unresolved_attention"]==[failed]
+    assert snapshot["current_failure"] is None
+    assert snapshot["historical_failure_count"]==1
     response=client.post(f"/command/failures/{failed.id}/acknowledge")
     assert response.status_code==302
     assert failed.status=="FAILED" and failed.raw_output=='{"partial":'
     assert failed.resolution_status=="ACKNOWLEDGED"
     snapshot=command.snapshot()
     assert snapshot["report"]["summary"]=="All clear"
-    assert snapshot["unresolved_attention"]==[]
+    assert snapshot["historical_failure_count"]==0
 
 
 def test_non_live_history_is_not_current_context_or_attention(ctx):

@@ -89,7 +89,7 @@ def test_thirteen_completion_criteria_are_rejected_never_truncated(ctx):
     ][0]
     assert operation_schema["properties"]["completion_criteria"][
         "maxItems"
-    ] == 12
+    ] == 6
     ceo, plan = _plan([f"Criterion {number}" for number in range(13)])
     with pytest.raises(ValueError, match="1 and 12"):
         operations.propose_operation(ceo, plan)

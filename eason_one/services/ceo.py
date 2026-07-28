@@ -91,7 +91,17 @@ def _founder_request_output_limit(ceo, request):
     return min(2048,ceo.current_model.max_output_tokens)
 
 def founder_request(ceo,request):
-    prompt=ceo.system_instructions+"\nCEO_FOUNDER_REQUEST\nReturn only strict JSON using ADVISORY, OPERATION_PLAN, OPERATION_FOLLOW_UP, PROJECT_ACTION, or STATUS_QUERY. Use OPERATION_PLAN for a genuinely new internal objective. Use OPERATION_FOLLOW_UP when the Founder asks to continue the current approved Operation. Never execute new authority before Founder approval. Never mutate authority."
+    prompt=ceo.system_instructions+(
+      "\nCEO_FOUNDER_REQUEST\nReturn only strict JSON using ADVISORY, "
+      "OPERATION_PLAN, OPERATION_FOLLOW_UP, PROJECT_ACTION, or STATUS_QUERY. "
+      "Use OPERATION_PLAN for a genuinely new internal objective. Return the "
+      "minimum executable plan; do not explain the plan inside JSON or repeat "
+      "Founder context. Prefer 2-4 Tasks and give each Task one job. Keep "
+      "acceptance criteria terse and testable, meeting policy to one short "
+      "rule, and completion criteria to outcome gates only. Use "
+      "OPERATION_FOLLOW_UP when the Founder asks to continue the current "
+      "approved Operation. Never execute new authority before Founder "
+      "approval. Never mutate authority.")
     operation=__import__("eason_one.models",fromlist=["Operation"]).Operation.query.filter(
       __import__("eason_one.models",fromlist=["Operation"]).Operation.status.in_(
         ["PLANNED","RUNNING","WAITING_FOR_FOUNDER","PAUSED"])).order_by(

@@ -1,4 +1,5 @@
 import os
+from decimal import Decimal, ROUND_HALF_UP
 from flask import Flask
 from .extensions import db
 
@@ -16,6 +17,9 @@ def create_app(test_config=None):
     app.register_blueprint(bp)
     from .i18n import translate
     app.jinja_env.globals["t"]=translate
+    app.jinja_env.filters["money"]=lambda value: format(
+      Decimal(value or 0).quantize(Decimal("0.01"),rounding=ROUND_HALF_UP),
+      ".2f")
     from .seed import seed_command
     app.cli.add_command(seed_command)
     with app.app_context():
@@ -121,4 +125,21 @@ def _upgrade_v1_database():
             for name,definition in additions.items():
                 if name not in cols:
                     db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {definition}"))
+    if "hiring_request" in inspector.get_table_names():
+        rows=db.session.execute(text(
+          "SELECT id, hr_assessment_json FROM hiring_request "
+          "WHERE status='FOUNDER_REVIEW' AND hr_assessment_json IS NOT NULL"
+        )).mappings().all()
+        import json
+        for row in rows:
+            assessment=row["hr_assessment_json"]
+            if isinstance(assessment,str):
+                try: assessment=json.loads(assessment)
+                except (TypeError,ValueError): continue
+            recommendation=(assessment.get("recommendation")
+              if isinstance(assessment,dict) else None)
+            if recommendation and recommendation!="HIRE":
+                db.session.execute(text(
+                  "UPDATE hiring_request SET status='ASSESSMENT_COMPLETE' "
+                  "WHERE id=:id"),{"id":row["id"]})
     db.session.commit()

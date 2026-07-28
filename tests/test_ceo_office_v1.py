@@ -84,10 +84,12 @@ def test_active_operation_briefing_uses_persisted_work_usage_and_cost(
     page=client.get("/command").get_data(as_text=True)
     assert calls==[]
     for value in (
-      "Validate demand.","1 / 3","4,000","NT$ 0.62 / NT$ 2.00",
+      "Validate demand.","1 / 3","NT$ 0.62 / NT$ 2.00",
       "Research evidence","Critique evidence","Synthesize evidence",
       "DONE","WORKING","ASSIGNED","CURRENT EXECUTION"):
         assert value in page
+    assert "TOKENS" not in page
+    assert "3,000 input" not in page
 
 
 def test_new_success_is_primary_and_old_failure_is_secondary(client, ctx):
@@ -111,8 +113,9 @@ def test_new_success_is_primary_and_old_failure_is_secondary(client, ctx):
       started_at=now())
     db.session.add_all([failed,success]); db.session.commit()
     page=client.get("/command").get_data(as_text=True)
-    assert page.index("Persisted current CEO intelligence.") < page.index(
-      "PREVIOUS UNRESOLVED REQUEST")
+    assert "Persisted current CEO intelligence." in page
+    assert "CURRENT REQUEST" not in page
+    assert "ATTENTION · 1 historical request" in page
     assert page.count("Persisted current CEO intelligence.")>=1
     assert "UNRESOLVED FAILURE" not in page
 

@@ -1,4 +1,3 @@
-from datetime import datetime, time, timezone, timedelta
 from decimal import Decimal
 import json
 from sqlalchemy import func
@@ -148,12 +147,6 @@ def _conversation():
           "mode":payload.get("mode")})
     return rows
 
-def _today_spend():
-    taipei=timezone(timedelta(hours=8))
-    start=datetime.combine(datetime.now(taipei).date(),time.min,taipei).astimezone(timezone.utc)
-    return Decimal(db.session.query(func.coalesce(func.sum(CostEvent.real_cost_delta),0)).filter(CostEvent.created_at>=start).scalar())
-
-
 def _operation_briefing(operation):
     plan=(operation.plan_json or {}).get("operation") or {}
     task_rows=[]
@@ -174,22 +167,32 @@ def _operation_briefing(operation):
               "result":None})
     done=sum(row["status"]=="DONE" for row in task_rows)
     total=len(task_rows)
-    runs=AgentRun.query.filter_by(operation_id=operation.id)
-    input_tokens=int(runs.with_entities(
-      func.coalesce(func.sum(AgentRun.input_tokens),0)).scalar() or 0)
-    output_tokens=int(runs.with_entities(
-      func.coalesce(func.sum(AgentRun.output_tokens),0)).scalar() or 0)
     cost=Decimal(db.session.query(func.coalesce(
       func.sum(CostEvent.real_cost_delta),0
     )).filter_by(operation_id=operation.id).scalar())
+    team=[]
+    for row in task_rows:
+        employee=row["employee"]
+        if not employee or any(item["employee"].id==employee.id for item in team):
+            continue
+        employee_rows=[item for item in task_rows
+          if item["employee"] and item["employee"].id==employee.id]
+        employee_cost=Decimal(db.session.query(func.coalesce(
+          func.sum(CostEvent.real_cost_delta),0)).filter_by(
+            operation_id=operation.id,employee_id=employee.id).scalar())
+        team.append({"employee":employee,"cost_twd":employee_cost,
+          "tasks":employee_rows,
+          "status":next((item["status"] for item in employee_rows
+            if item["status"] in {"WORKING","REVIEW","ASSIGNED","BLOCKED"}),
+            employee_rows[-1]["status"])})
     budget=Decimal(operation.approved_budget_twd)
     current=__import__(
       "eason_one.services.operations",fromlist=["state"]).state(operation)
     return {
-      "operation":operation,"tasks":task_rows,"done":done,"total":total,
+      "operation":operation,"tasks":task_rows,"team":team,
+      "done":done,"total":total,
       "progress_percent":round((done/total)*100) if total else 0,
-      "input_tokens":input_tokens,"output_tokens":output_tokens,
-      "total_tokens":input_tokens+output_tokens,"cost_twd":cost,
+      "cost_twd":cost,
       "budget_twd":budget,"remaining_twd":budget-cost,
       "current_stage":current["current_step"],
       "founder_attention":(
@@ -200,87 +203,6 @@ def _operation_briefing(operation):
         (operation.memory_json or {}).get("goal_verification") or {}),
       "completion_criteria":plan.get("completion_criteria") or [],
       "result":operation.founder_report_json or {}}
-
-def snapshot():
-    projects=Project.query.filter_by(environment="LIVE").order_by(Project.updated_at.desc()).all()
-    active=[project_view(project) for project in projects if project.status in ACTIVE_PROJECT]
-    recent_tasks=(Task.query.join(Project).filter(Project.environment=="LIVE",Task.status=="DONE")
-      .order_by(Task.completed_at.desc()).limit(6).all())
-    recent_meetings=(Meeting.query.filter(Meeting.status.in_(["ENDED","TERMINATED_BY_FOUNDER"]))
-      .order_by(Meeting.ended_at.desc()).limit(4).all())
-    attention=_attention()
-    unresolved=_unresolved_founder_failure()
-    meetings=[]
-    for meeting in Meeting.query.filter(Meeting.status.in_(OPEN_MEETING)).order_by(Meeting.created_at.desc()).all():
-        tokens,cost=meeting_usage(meeting)
-        meetings.append({"meeting":meeting,"tokens":tokens,"cost":cost,
-          "participants":[p.employee for p in meeting.participants if p.removed_at is None]})
-    operation=Operation.query.filter(Operation.status.in_(
-      ["PLANNED","WAITING_FOR_FOUNDER","RUNNING","PAUSED"])).order_by(
-      Operation.updated_at.desc()).first()
-    latest_interaction=_conversation()[-1] if _conversation() else None
-    latest_run=latest_interaction["run"] if latest_interaction else None
-    latest_is_unresolved=(
-      unresolved and latest_run and unresolved.id==latest_run.id)
-    if latest_is_unresolved:
-        cost=Decimal(unresolved.real_cost or 0)
-        partial=_safe_partial_response(unresolved)
-        report={"headline":None,
-          "summary":partial,
-          "next_move":None,
-          "risk":f"{unresolved.failure_reason or 'FAILED'} · TWD {cost:.2f}",
-          "requires_founder":True,
-          "decision_needed":None,
-          "why_founder":None,
-          "after_decision":None,
-          "operation":None,"unresolved_run":unresolved}
-    elif latest_interaction and latest_run.status=="SUCCEEDED" and not operation:
-        report={"headline":"CEO response",
-          "summary":latest_interaction["ceo"],
-          "next_move":None,
-          "risk":None,"requires_founder":bool(attention),
-          "decision_needed":attention[0]["summary"] if attention else None,
-          "why_founder":None,
-          "after_decision":None,
-          "operation":None}
-    elif attention and not operation:
-        brief=_brief(active,attention,recent_tasks,recent_meetings)
-        report={"headline":brief["title"],"summary":brief["summary"],
-          "next_move":brief["recommendation"],"risk":brief.get("watch"),
-          "requires_founder":True,
-          "decision_needed":brief["summary"],
-          "why_founder":None,
-          "after_decision":None,
-          "operation":None}
-    elif operation:
-        report=_operation_report(operation)
-    else:
-        if active:
-            brief=_brief(active,attention,recent_tasks,recent_meetings)
-            report={"headline":brief["title"],"summary":brief["summary"],
-              "next_move":brief["recommendation"],"risk":brief.get("watch"),
-              "requires_founder":False,"decision_needed":None,
-              "why_founder":None,"after_decision":None,"operation":None}
-        else:
-            report={"headline":None,
-              "summary":None,
-              "next_move":None,
-              "risk":None,"requires_founder":False,
-              "decision_needed":None,"why_founder":None,
-              "after_decision":None,"operation":None}
-    recent_operation=Operation.query.filter_by(status="COMPLETED").order_by(
-      Operation.ended_at.desc(),Operation.updated_at.desc()).first()
-    return {"company":get_company(),"ceo":Employee.query.filter_by(slug="ceo").first(),
-      "spent":spent(),"remaining":remaining(),"today_spend":_today_spend(),
-      "active":active[:3],"attention":attention,"recent_tasks":recent_tasks,
-      "recent_meetings":recent_meetings,"meetings":meetings,"activity":_activity(),
-      "conversation":_conversation(),"brief":_brief(active,attention,recent_tasks,recent_meetings),
-      "report":report,"recent_operation":recent_operation,
-      "unresolved_attention":(
-        [unresolved] if unresolved and not latest_is_unresolved else []),
-      "executive_state":("UNRESOLVED_FAILURE" if latest_is_unresolved else
-        "FOUNDER_ATTENTION" if report["requires_founder"] else
-        "ACTIVE_WORK" if operation or active else "IDLE")}
 
 def snapshot():
     projects=Project.query.filter_by(
@@ -316,10 +238,13 @@ def snapshot():
     latest_failed=bool(
       latest and latest["run"].status=="FAILED"
       and latest["run"].resolution_status is None)
+    current_failure=latest["run"] if latest_failed else None
+    historical_failure_count=sum(
+      run.id!=getattr(current_failure,"id",None) for run in failures)
     return {
       "company":get_company(),
       "ceo":Employee.query.filter_by(slug="ceo").first(),
-      "spent":spent(),"remaining":remaining(),"today_spend":_today_spend(),
+      "spent":spent(),"remaining":remaining(),
       "active":visible_active[:3],"attention":attention,"recent_tasks":recent_tasks,
       "recent_meetings":recent_meetings,"meetings":meetings,
       "activity":_activity(),"conversation":conversation,
@@ -330,7 +255,8 @@ def snapshot():
       "operation_briefing":_operation_briefing(operation) if operation else None,
       "recent_operation":(
         _operation_briefing(recent_operation) if recent_operation else None),
-      "unresolved_attention":failures,
+      "current_failure":current_failure,
+      "historical_failure_count":historical_failure_count,
       "executive_state":(
         "UNRESOLVED_FAILURE" if latest_failed else
         "FOUNDER_ATTENTION" if attention or failures or (
@@ -340,10 +266,11 @@ def snapshot():
 
 def shell_snapshot():
     company=get_company()
-    if not company: return {"ceo":None,"ceo_status":"OFFLINE","today_spend":Decimal(0)}
+    if not company: return {"ceo":None,"ceo_status":"OFFLINE",
+      "total_spend":Decimal(0)}
     ceo=Employee.query.filter_by(slug="ceo").first()
     return {"ceo":ceo,"ceo_status":employee_status(ceo) if ceo else "OFFLINE",
-      "today_spend":_today_spend()}
+      "total_spend":spent()}
 
 def work_snapshot():
     projects=[project_view(project) for project in Project.query.filter_by(environment="LIVE").order_by(Project.updated_at.desc()).all()]
