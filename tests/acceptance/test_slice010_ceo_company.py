@@ -52,8 +52,8 @@ def test_command_is_ceo_office_and_get_is_zero_call(client, monkeypatch):
     page = client.get("/command").get_data(as_text=True)
     assert 'class="ceo-office"' in page
     assert 'class="ceo-core"' in page
-    assert "CEO REPORT" in page
-    assert "Recent conversation" in page
+    assert "CEO <b>AVAILABLE</b>" in page
+    assert 'class="command-input ceo-composer"' in page
     for forbidden in (
         "Active Company", "Company activity pulse", "CEO Brief",
         'class="command-lower"', 'class="executive-brief"',
@@ -81,7 +81,7 @@ def test_deterministic_ceo_report_surfaces_completion_and_attention(client, ctx)
         "next_move": "Approve or stop.",
     }
     db.session.commit()
-    assert "I need one decision." in client.get(
+    assert "Additional authorization is required." in client.get(
         "/command"
     ).get_data(as_text=True)
 

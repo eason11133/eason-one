@@ -134,7 +134,7 @@ def test_active_operation_renders_founder_level_ceo_report(client, ctx):
     assert "Founder decision required" not in page
 
 
-def test_no_active_work_gives_honest_boss_prompt_even_after_completion(
+def test_no_active_work_gives_quiet_ceo_office_after_completion(
     client, ctx
 ):
     operation = _operation()
@@ -143,8 +143,10 @@ def test_no_active_work_gives_honest_boss_prompt_even_after_completion(
     operation.project.status = "COMPLETED"
     db.session.commit()
     page = client.get("/command").get_data(as_text=True)
-    assert "The company currently has no active work." in page
-    assert "Boss, what would you like us to do?" in page
+    assert "CEO <b>AVAILABLE</b>" in page
+    assert 'class="command-input ceo-composer"' in page
+    assert "Good evening" not in page
+    assert "what would you like us to do" not in page
 
 
 def test_founder_attention_report_explains_decision_and_continuation(
@@ -157,8 +159,6 @@ def test_founder_attention_report_explains_decision_and_continuation(
     page = client.get("/command").get_data(as_text=True)
     assert "Founder decision required" in page
     assert "Authorize access to Founder-only evidence" in page
-    assert "Why I need you" in page
-    assert "After your decision" in page
 
 
 def test_internal_blocker_is_owned_by_ceo_not_escalated(client, ctx):
@@ -168,7 +168,6 @@ def test_internal_blocker_is_owned_by_ceo_not_escalated(client, ctx):
     task.result_summary = "Evidence criteria need a narrower probe."
     db.session.commit()
     page = client.get("/command").get_data(as_text=True)
-    assert "I will resolve" in page
     assert "Founder decision required" not in page
     assert "Evidence criteria need a narrower probe" in page
 
@@ -227,7 +226,7 @@ def test_current_operation_follow_up_reuses_running_operation(
     assert operation.memory_json["founder_followups"][-1][
         "instruction"
     ] == "continue the current operation"
-    assert "CEO is continuing the current approved Operation" in client.get(
+    assert "data-operation-runner" in client.get(
         "/command"
     ).get_data(as_text=True)
 

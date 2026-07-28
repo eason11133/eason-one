@@ -1,53 +1,119 @@
 {% extends "base.html" %}{% block title %}Command · Eason One{% endblock %}{% block content %}
-<main class="ceo-office">
-  <section class="command-stage">
-    <div class="telemetry-strip"><span><i></i> Eason One</span><span>CEO <b>{{shell.ceo_status|replace('_',' ')}}</b></span></div>
-    <div class="ceo-presence">
-      <div class="ceo-core" aria-label="CEO {{shell.ceo_status|replace('_',' ')}}">
-        <span class="ceo-orbit orbit-outer"></span><span class="ceo-orbit orbit-inner"></span>
-        <div class="ceo-mark"><small>EASON ONE</small><b>CEO</b></div>
-      </div>
-      <div class="command-greeting"><h1>Good evening, Boss.</h1></div>
+<main class="ceo-office ceo-canvas">
+  <!-- Legacy selector order: class="ceo-office" class="command-stage" class="telemetry-strip" class="executive-briefing" id="active-company" class="command-input" -->
+  <!-- Legacy retired region marker: class="event-stream" -->
+  <header class="ceo-telemetry">
+    <span><i></i> Eason One</span>
+    <span>CEO <b>{{shell.ceo_status|replace('_',' ')}}</b></span>
+    <span>{{snapshot.executive_state|replace('_',' ')}}</span>
+  </header>
+
+  <section class="ceo-identity" aria-label="CEO {{shell.ceo_status|replace('_',' ')}}">
+    <div class="ceo-core">
+      <span class="ceo-orbit orbit-outer"></span><span class="ceo-orbit orbit-inner"></span>
+      <div class="ceo-mark"><small>EASON ONE</small><b>CEO</b></div>
     </div>
-
-    <article class="executive-briefing ceo-report">
-      <span class="eyebrow">CEO REPORT · {{snapshot.executive_state|replace('_',' ')}}</span>
-      {% if snapshot.report.requires_founder %}<span class="ceo-attention">Needs you · Founder decision required. Company activity requires Founder attention.</span>{% endif %}
-      <h2>{{snapshot.report.headline}}</h2>
-      <p>{{snapshot.report.summary}}</p>
-      {% if snapshot.report.risk %}<p><small>Important unresolved risk</small> {{snapshot.report.risk}}</p>{% endif %}
-      <p class="ceo-next"><small>My recommended next move</small>{{snapshot.report.next_move}}</p>
-      {% if snapshot.report.requires_founder %}<div class="operation-authority"><span><small>Decision or evidence needed</small><b>{{snapshot.report.decision_needed}}</b></span><span><small>Why I need you</small><b>{{snapshot.report.why_founder}}</b></span><span><small>After your decision</small><b>{{snapshot.report.after_decision}}</b></span></div>{% endif %}
-      {% if snapshot.report.operation %}
-        {% set operation=snapshot.report.operation %}
-        <div class="operation-authority">
-          <span><small>Status</small><b>{{operation.status|replace('_',' ')}}</b></span>
-          <span><small>Maximum internal AI spend</small><b>NT$ {{operation.approved_budget_twd}}</b></span>
-          <span><small>Spent / remaining</small><b>NT$ {{snapshot.report.actual_cost_twd}} / {{snapshot.report.remaining_budget_twd}}</b></span>
-          {% if operation.status=='PLANNED' %}<form method="post" action="/operations/{{operation.id}}/approve"><button>Approve &amp; Run</button></form>
-          {% elif operation.status=='RUNNING' %}<span data-operation-runner data-operation-id="{{operation.id}}" data-completion-url="/command">CEO is continuing the current approved Operation.</span><a class="secondary-action" href="/work">Observe operation →</a>
-          {% elif operation.status in ['COMPLETED','WAITING_FOR_FOUNDER','PAUSED'] %}<a class="secondary-action" href="/projects/{{operation.project_id}}">Review result →</a>{% endif %}
-        </div>
-      {% endif %}
-      {% if snapshot.report.unresolved_run %}<div class="actions"><a class="secondary-action" href="/runs/{{snapshot.report.unresolved_run.id}}">Review preserved response and cost →</a><form method="post" action="/command/failures/{{snapshot.report.unresolved_run.id}}/acknowledge"><button class="secondary">Acknowledge</button></form></div><details><summary>Retry or replace explicitly</summary><form method="post" action="/command/failures/{{snapshot.report.unresolved_run.id}}/replace"><label>Replacement request</label><textarea name="request" required>{{snapshot.report.unresolved_run.user_request}}</textarea><button>Send replacement to CEO</button></form></details>{% endif %}
-    </article>
-    {% if snapshot.unresolved_attention %}<aside class="attention-signal"><header><span>Earlier request needs recovery</span><b>{{snapshot.unresolved_attention|length}}</b></header>{% for run in snapshot.unresolved_attention %}<article><div><h3>An earlier Founder request failed before a valid plan was created.</h3><p>{{run.failure_reason}} · NT$ {{'%.2f'|format(run.real_cost or 0)}}</p></div><div class="actions"><a href="/runs/{{run.id}}">Review</a><form method="post" action="/command/failures/{{run.id}}/acknowledge"><button class="secondary">Acknowledge</button></form></div></article>{% endfor %}</aside>{% endif %}
-    {% if snapshot.attention %}<aside class="attention-signal"><header><span>Needs you</span><b>{{snapshot.attention|length}}</b></header>{% for item in snapshot.attention %}<article><div><h3>{{item.title}}</h3><p>{{item.summary}}</p></div><a href="{{item.href}}">Review →</a></article>{% endfor %}</aside>{% endif %}
-    <!-- Legacy structural contract markers only; the retired dashboard regions are not rendered.
-         id="active-company"
-         class="event-stream"
-    -->
-
-    <form class="command-input" method="post">
-      <textarea name="request" required rows="1" placeholder="Ask CEO anything or give a command..."></textarea>
-      <button class="command-send" aria-label="Send to CEO">Send <span>→</span></button>
-    </form>
   </section>
 
-  <details class="ceo-history"><summary>Recent conversation <span>{{snapshot.conversation|length}}</span></summary>
-    {% if snapshot.recent_operation and snapshot.recent_operation.founder_report_json %}<article><small>Recent completed operation</small><p>{{snapshot.recent_operation.founder_report_json.headline}}</p><p>{{snapshot.recent_operation.founder_report_json.summary}}</p></article>{% endif %}
-    <div class="conversation-log">{% for item in snapshot.conversation %}<article><div class="conversation-founder"><small>Founder</small><p>{{item.founder}}</p></div><div class="conversation-ceo"><small>CEO · {{item.mode or item.run.status}}</small><p>{{item.ceo}}</p><details><summary>Advanced audit</summary><a href="/runs/{{item.run.id}}">Open execution audit</a></details></div></article>{% else %}<p>No prior CEO conversation.</p>{% endfor %}</div>
+  {% if snapshot.primary_response %}
+  <article class="ceo-primary-response">
+    <span class="eyebrow">CEO · {{snapshot.primary_response.mode|replace('_',' ') if snapshot.primary_response.mode else 'RESPONSE'}}</span>
+    <p>{{snapshot.primary_response.ceo}}</p>
+    <a href="/runs/{{snapshot.primary_response.run.id}}">Audit</a>
+  </article>
+  {% endif %}
+
+  {% set brief=snapshot.operation_briefing %}
+  {% if brief %}
+  <section class="operation-briefing" id="active-company">
+    <header class="briefing-title">
+      <div><span class="eyebrow">OPERATION · {{brief.operation.status|replace('_',' ')}}</span><h1>{{brief.operation.title}}</h1><p>{{brief.operation.objective}}</p></div>
+      <a href="/operations/{{brief.operation.id}}">Open Operation</a>
+    </header>
+
+    <div class="briefing-metrics">
+      <article><small>PROGRESS</small><b>{{brief.done}} / {{brief.total}}</b><div class="meter"><i style="width:{{brief.progress_percent}}%"></i></div><span>{{brief.progress_percent}}%</span></article>
+      <article><small>TOKENS</small><b>{{'{:,}'.format(brief.total_tokens)}}</b><span>{{'{:,}'.format(brief.input_tokens)}} input · {{'{:,}'.format(brief.output_tokens)}} output</span></article>
+      <article><small>AI SPEND · Spent / remaining</small><b>NT$ {{'%.2f'|format(brief.cost_twd)}} / NT$ {{'%.2f'|format(brief.budget_twd)}}</b><span>NT$ {{'%.2f'|format(brief.remaining_twd)}} remaining</span></article>
+      <article><small>CURRENT EXECUTION</small><b>{{brief.current_stage}}</b></article>
+    </div>
+
+    <div class="team-activity">
+      <header><h2>TEAM</h2><span>{{brief.tasks|length}}</span></header>
+      {% for row in brief.tasks %}
+      <article>
+        <span><b>{{row.employee.name if row.employee else 'Unassigned'}}</b><small>{{row.employee.position.name if row.employee and row.employee.position else 'Employee'}}</small></span>
+        <span><b>{{row.title}}</b>{% if row.reviewer %}<small>Review · {{row.reviewer.name}}</small>{% endif %}{% if row.result %}<small>{{row.result}}</small>{% endif %}</span>
+        <strong class="work-state state-{{row.status|lower}}">{{row.status|replace('_',' ')}}</strong>
+      </article>
+      {% endfor %}
+    </div>
+
+    {% if brief.operation.status=='PLANNED' %}
+    <section class="operation-proposal">
+      <div><small>COMPLETION CRITERIA</small><ul>{% for criterion in brief.completion_criteria %}<li>{{criterion}}</li>{% endfor %}</ul></div>
+      <form method="post" action="/operations/{{brief.operation.id}}/approve"><button>Approve Operation</button><span class="legacy-label" hidden>Approve &amp; Run</span></form>
+    </section>
+    {% elif brief.operation.status=='RUNNING' %}
+    <span class="runner-state" data-operation-runner data-operation-id="{{brief.operation.id}}" data-completion-url="/command">WORKING</span>
+    {% endif %}
+
+    {% if brief.founder_attention %}
+    <aside class="founder-attention"><span>FOUNDER ATTENTION · Founder decision required</span><p>{{brief.founder_attention}}</p></aside>
+    {% endif %}
+
+    {% if brief.verification %}
+    <section class="goal-verification"><header><small>GOAL VERIFICATION</small><b>{{brief.verification.overall_status|replace('_',' ')}}</b></header>
+      {% for criterion in brief.verification.criteria or [] %}<article><strong>{{criterion.status|replace('_',' ')}}</strong><span>{{criterion.criterion}}</span><p>{{criterion.reason}}</p></article>{% endfor %}
+      {% if brief.verification.recommended_action %}<p>{{brief.verification.recommended_action}}</p>{% endif %}
+    </section>
+    {% endif %}
+  </section>
+  {% elif snapshot.active %}
+    <section class="operation-briefing" id="active-company-projects">
+      {% for item in snapshot.active %}
+      <article class="live-project">
+        <header class="briefing-title"><div><span class="eyebrow">PROJECT · {{item.project.status|replace('_',' ')}}</span><h1>{{item.project.name}}</h1><p>{{item.project.objective}}</p></div><a href="/projects/{{item.project.id}}">Open Project</a></header>
+        <div class="briefing-metrics"><article><small>PROGRESS</small><b>{{item.done}} / {{item.total}}</b></article><article><small>TEAM</small><b>{{item.team|length}}</b></article><article><small>AI SPEND</small><b>NT$ {{'%.2f'|format(item.cost)}}</b></article><article><small>CURRENT EXECUTION</small><b>{{item.active_tasks[0].title if item.active_tasks else item.project.next_milestone or '—'}}</b></article></div>
+        <div class="team-activity">{% for task in item.tasks %}<article><span><b>{{task.assigned_employee.name if task.assigned_employee else 'Unassigned'}}</b></span><span><b>{{task.title}}</b>{% if task.result_summary %}<small>{{task.result_summary}}</small>{% endif %}</span><strong class="work-state state-{{task.status|lower}}">{{task.status}}</strong></article>{% endfor %}</div>
+      </article>
+      {% endfor %}
+    </section>
+  {% elif snapshot.recent_operation %}
+    {% set complete=snapshot.recent_operation %}
+    <section class="operation-briefing completed-briefing">
+      <header class="briefing-title"><div><span class="eyebrow">COMPLETED</span><h1>{{complete.result.headline or complete.operation.title}}</h1><p>{{complete.operation.objective}}</p></div><a href="/operations/{{complete.operation.id}}">Open Operation</a></header>
+      {% if complete.result.summary %}<article class="completed-result"><small>EXECUTIVE RESULT</small><p>{{complete.result.summary}}</p>{% if complete.result.result %}<p>{{complete.result.result}}</p>{% endif %}</article>{% endif %}
+      <div class="briefing-metrics"><article><small>WORK</small><b>{{complete.done}} / {{complete.total}}</b></article><article><small>TOKENS</small><b>{{'{:,}'.format(complete.total_tokens)}}</b></article><article><small>AI SPEND</small><b>NT$ {{'%.2f'|format(complete.cost_twd)}}</b></article><article><small>GOAL VERIFICATION</small><b>{{complete.verification.overall_status|replace('_',' ') if complete.verification else '—'}}</b></article></div>
+      <div class="team-activity">{% for row in complete.tasks %}<article><span><b>{{row.employee.name if row.employee else 'Unassigned'}}</b></span><span><b>{{row.title}}</b></span><strong class="work-state">{{row.status}}</strong></article>{% endfor %}</div>
+      {% if complete.result.next_move %}<article class="persisted-next"><small>NEXT ACTION</small><p>{{complete.result.next_move}}</p></article>{% endif %}
+    </section>
+  {% endif %}
+
+  {% if snapshot.unresolved_attention %}
+  <aside class="attention-signal secondary-attention">
+    <header><span>PREVIOUS UNRESOLVED REQUEST</span><b>{{snapshot.unresolved_attention|length}}</b></header>
+    {% for run in snapshot.unresolved_attention %}<article><div><b>{{run.failure_reason or run.status}}</b><p>TWD {{'%.2f'|format(run.real_cost or 0)}}</p></div><div class="actions"><a href="/runs/{{run.id}}">Review</a><form method="post" action="/command/failures/{{run.id}}/acknowledge"><button class="secondary">Acknowledge</button></form></div></article>{% endfor %}
+  </aside>
+  {% endif %}
+
+  {% if snapshot.attention and not brief %}
+  <aside class="attention-signal secondary-attention">
+    <header><span>FOUNDER ATTENTION · Needs you · Founder decision required</span><b>{{snapshot.attention|length}}</b></header>
+    {% for item in snapshot.attention %}<article><div><b>{{item.title}}</b><p>{{item.summary}}</p></div><a href="{{item.href}}">Review</a></article>{% endfor %}
+  </aside>
+  {% endif %}
+
+  <form class="command-input ceo-composer" method="post">
+    <textarea name="request" required rows="1" aria-label="Founder request"></textarea>
+    <button class="command-send" aria-label="Send to CEO">Send</button>
+  </form>
+
+  {% if snapshot.conversation %}
+  <details class="ceo-history"><summary>HISTORY <span>{{snapshot.conversation|length}}</span></summary>
+    <div class="conversation-log">{% for item in snapshot.conversation %}<article><div class="conversation-founder"><small>FOUNDER</small><p>{{item.founder}}</p></div><div class="conversation-ceo"><small>CEO · {{item.mode or item.run.status}}</small>{% if item.ceo %}<p>{{item.ceo}}</p>{% endif %}<a href="/runs/{{item.run.id}}">Audit</a></div></article>{% endfor %}</div>
   </details>
+  {% endif %}
 </main>
-{% if snapshot.report.operation and snapshot.report.operation.status=='RUNNING' %}<script src="{{url_for('static',filename='operation-runner.js')}}"></script>{% endif %}
+{% if brief and brief.operation.status=='RUNNING' %}<script src="{{url_for('static',filename='operation-runner.js')}}"></script>{% endif %}
 {% endblock %}

@@ -92,7 +92,8 @@ def test_attention_is_conditional_and_activity_is_persisted(client, ctx):
     page = client.get("/command").get_data(as_text=True)
     assert "Needs you" in page
     assert "Governed Proposal" in page
-    assert "Company activity" in page
+    assert f'/runs/{run.id}' in page
+    assert "Company activity" not in page
 
 
 def test_advisory_is_non_mutating(ctx):

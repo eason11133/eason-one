@@ -40,33 +40,6 @@ def project_view(project):
     return {"project":project,"tasks":tasks,"done":done,"total":len(tasks),"active_tasks":active,
       "team":team,"cost":cost,"attention":attention}
 
-def _brief(active,attention,recent_tasks,recent_meetings):
-    if attention:
-        item=attention[0]
-        return {"eyebrow":"Founder decision required","title":item["title"],
-          "summary":item["summary"],"recommendation":item["recommendation"],"watch":item.get("watch")}
-    blocked=Task.query.join(Project).filter(Project.environment=="LIVE",Task.status=="BLOCKED").order_by(Task.updated_at.desc()).first()
-    if blocked:
-        return {"eyebrow":"Blocked work","title":blocked.project.name,"summary":blocked.title,
-          "recommendation":"Review the blocker and decide whether to revise, continue, or stop.",
-          "watch":blocked.result_summary}
-    if active:
-        project=active[0]["project"]
-        return {"eyebrow":"Active work","title":project.name,
-          "summary":project.current_state_summary or project.objective,
-          "recommendation":project.next_milestone or "Review current work and authorize the next executable step.",
-          "watch":project.known_constraints}
-    if recent_tasks:
-        task=recent_tasks[0]
-        return {"eyebrow":"Recent result","title":task.project.name,"summary":task.result_summary or task.title,
-          "recommendation":"Review the result and decide the next Company action.","watch":None}
-    if recent_meetings:
-        meeting=recent_meetings[0]
-        return {"eyebrow":"Recent result","title":meeting.title,"summary":"Meeting result is ready for review.",
-          "recommendation":"Review the deterministic Meeting result.","watch":None}
-    return {"eyebrow":"CEO brief","title":"No active Company work.",
-      "summary":"The Company is available.","recommendation":"What should we work on, Boss?","watch":None}
-
 def _attention():
     items=[]
     for proposal in Proposal.query.filter_by(status="PENDING").order_by(Proposal.created_at.desc()).all():
@@ -171,7 +144,7 @@ def _conversation():
         payload=run.parsed_output_json or {}
         rows.append({"run":run,"founder":run.user_request,
           "ceo":payload.get("executive_response") or _safe_partial_response(run)
-            or (run.error_text if run.status=="FAILED" else "No validated response."),
+            or (run.error_text if run.status=="FAILED" else None),
           "mode":payload.get("mode")})
     return rows
 
@@ -181,75 +154,52 @@ def _today_spend():
     return Decimal(db.session.query(func.coalesce(func.sum(CostEvent.real_cost_delta),0)).filter(CostEvent.created_at>=start).scalar())
 
 
-def _operation_report(operation):
-    actual=Decimal(db.session.query(func.coalesce(
+def _operation_briefing(operation):
+    plan=(operation.plan_json or {}).get("operation") or {}
+    task_rows=[]
+    if operation.tasks:
+        for task in operation.tasks:
+            task_rows.append({
+              "title":task.title,"status":task.status,
+              "employee":task.assigned_employee,"reviewer":task.reviewer,
+              "result":task.result_summary})
+    else:
+        for item in plan.get("tasks") or []:
+            task_rows.append({
+              "title":item.get("title"),"status":"PLANNED",
+              "employee":db.session.get(
+                Employee,item.get("assignee_employee_id")),
+              "reviewer":db.session.get(
+                Employee,item.get("reviewer_employee_id")),
+              "result":None})
+    done=sum(row["status"]=="DONE" for row in task_rows)
+    total=len(task_rows)
+    runs=AgentRun.query.filter_by(operation_id=operation.id)
+    input_tokens=int(runs.with_entities(
+      func.coalesce(func.sum(AgentRun.input_tokens),0)).scalar() or 0)
+    output_tokens=int(runs.with_entities(
+      func.coalesce(func.sum(AgentRun.output_tokens),0)).scalar() or 0)
+    cost=Decimal(db.session.query(func.coalesce(
       func.sum(CostEvent.real_cost_delta),0
     )).filter_by(operation_id=operation.id).scalar())
-    remaining_budget=Decimal(operation.approved_budget_twd)-actual
-    completed=[task for task in operation.tasks if task.status=="DONE"]
-    active=next((task for task in operation.tasks if task.status in {
-      "ASSIGNED","WORKING","REVIEW","BLOCKED"}),None)
-    results=[task.result_summary for task in completed if task.result_summary][-3:]
-    verification=(operation.memory_json or {}).get("goal_verification") or {}
-    failed=[item for item in verification.get("criteria") or []
-      if item.get("status")!="SATISFIED"]
-    blocked=[task for task in operation.tasks if task.status=="BLOCKED"]
-    progress=(f"{len(completed)} of {len(operation.tasks)} required Tasks are accepted."
-      + (f" Latest result: {results[-1]}" if results else ""))
-    risk=None
-    if failed:
-        risk="; ".join(
-          f"{item.get('criterion')}: {item.get('reason')}" for item in failed[:3])
-    elif blocked:
-        risk="; ".join(
-          task.result_summary or f"{task.title} requires remediation"
-          for task in blocked[:3])
-    if operation.status=="PLANNED":
-        return {"headline":"I prepared a bounded company operation.",
-          "summary":operation.objective,
-          "next_move":"Approve once to authorize the bounded internal work and maximum spend.",
-          "risk":"No internal work begins before your approval.",
-          "requires_founder":True,
-          "decision_needed":"Approve or reject the proposed objective, scope, and budget.",
-          "why_founder":"Only the Founder may authorize a new Operation.",
-          "after_decision":"If approved, I will manage Tasks, Reviews, Meetings, HR, and Goal Verification.",
-          "actual_cost_twd":actual,"remaining_budget_twd":remaining_budget,
-          "operation":operation}
-    if operation.status=="WAITING_FOR_FOUNDER":
-        persisted=operation.founder_report_json or {}
-        return {"headline":persisted.get("headline") or "I need one Founder decision.",
-          "summary":persisted.get("summary") or operation.waiting_reason,
-          "next_move":persisted.get("next_move") or "Provide the requested authority or evidence.",
-          "risk":risk,"requires_founder":True,
-          "decision_needed":operation.waiting_reason or persisted.get("next_action"),
-          "why_founder":"The next action crosses existing Founder authority or recovery boundaries.",
-          "after_decision":"I will resume the same bounded Operation or stop as directed.",
-          "actual_cost_twd":actual,"remaining_budget_twd":remaining_budget,
-          "operation":operation}
-    if operation.status=="PAUSED":
-        return {"headline":f"{operation.title} is paused.",
-          "summary":progress,"next_move":"Resume or stop the approved Operation.",
-          "risk":risk,"requires_founder":True,
-          "decision_needed":"Choose whether the paused Operation should resume.",
-          "why_founder":"Execution was explicitly paused.",
-          "after_decision":"I will continue from persisted state without replaying completed paid work.",
-          "actual_cost_twd":actual,"remaining_budget_twd":remaining_budget,
-          "operation":operation}
-    if failed:
-        next_move=verification.get("recommended_action") or (
-          "I will create bounded remediation work inside the approved Operation.")
-    elif active:
-        next_move=(
-          f"I will resolve {active.title} through the existing operating loop."
-          if active.status=="BLOCKED" else
-          f"I will continue {active.title}, then obtain its required Review.")
-    else:
-        next_move="I will run Goal Verification before producing the final report."
-    return {"headline":f"I am pursuing: {operation.objective}",
-      "summary":progress,"next_move":next_move,"risk":risk,
-      "requires_founder":False,"decision_needed":None,"why_founder":None,
-      "after_decision":None,"actual_cost_twd":actual,
-      "remaining_budget_twd":remaining_budget,"operation":operation}
+    budget=Decimal(operation.approved_budget_twd)
+    current=__import__(
+      "eason_one.services.operations",fromlist=["state"]).state(operation)
+    return {
+      "operation":operation,"tasks":task_rows,"done":done,"total":total,
+      "progress_percent":round((done/total)*100) if total else 0,
+      "input_tokens":input_tokens,"output_tokens":output_tokens,
+      "total_tokens":input_tokens+output_tokens,"cost_twd":cost,
+      "budget_twd":budget,"remaining_twd":budget-cost,
+      "current_stage":current["current_step"],
+      "founder_attention":(
+        operation.waiting_reason or (operation.founder_report_json or {}).get(
+          "summary") if operation.status in {
+            "WAITING_FOR_FOUNDER","PAUSED"} else None),
+      "verification":(
+        (operation.memory_json or {}).get("goal_verification") or {}),
+      "completion_criteria":plan.get("completion_criteria") or [],
+      "result":operation.founder_report_json or {}}
 
 def snapshot():
     projects=Project.query.filter_by(environment="LIVE").order_by(Project.updated_at.desc()).all()
@@ -275,27 +225,23 @@ def snapshot():
     if latest_is_unresolved:
         cost=Decimal(unresolved.real_cost or 0)
         partial=_safe_partial_response(unresolved)
-        report={"headline":"A Founder request needs recovery.",
-          "summary":partial or "The CEO response was incomplete and no Company authority was created.",
-          "next_move":"Review the preserved paid response, then explicitly retry or provide a revised request.",
+        report={"headline":None,
+          "summary":partial,
+          "next_move":None,
           "risk":f"{unresolved.failure_reason or 'FAILED'} · TWD {cost:.2f}",
           "requires_founder":True,
-          "decision_needed":"Choose whether to retry or replace this unresolved Founder request.",
-          "why_founder":"A paid Founder request failed before valid authority could be created.",
-          "after_decision":"The CEO will use a new explicit request; the historical paid response remains auditable.",
+          "decision_needed":None,
+          "why_founder":None,
+          "after_decision":None,
           "operation":None,"unresolved_run":unresolved}
     elif latest_interaction and latest_run.status=="SUCCEEDED" and not operation:
         report={"headline":"CEO response",
           "summary":latest_interaction["ceo"],
-          "next_move":"Continue the conversation or approve proposed work when shown.",
+          "next_move":None,
           "risk":None,"requires_founder":bool(attention),
           "decision_needed":attention[0]["summary"] if attention else None,
-          "why_founder":(
-            "A separate item requires existing Founder authority."
-            if attention else None),
-          "after_decision":(
-            "I will continue the governed Company path."
-            if attention else None),
+          "why_founder":None,
+          "after_decision":None,
           "operation":None}
     elif attention and not operation:
         brief=_brief(active,attention,recent_tasks,recent_meetings)
@@ -303,8 +249,8 @@ def snapshot():
           "next_move":brief["recommendation"],"risk":brief.get("watch"),
           "requires_founder":True,
           "decision_needed":brief["summary"],
-          "why_founder":"This item requires existing Founder authority.",
-          "after_decision":"I will continue the governed Company path.",
+          "why_founder":None,
+          "after_decision":None,
           "operation":None}
     elif operation:
         report=_operation_report(operation)
@@ -316,9 +262,9 @@ def snapshot():
               "requires_founder":False,"decision_needed":None,
               "why_founder":None,"after_decision":None,"operation":None}
         else:
-            report={"headline":"The company currently has no active work.",
-              "summary":"Boss, what would you like us to do?",
-              "next_move":"Give me one objective and I will prepare the bounded Company operation.",
+            report={"headline":None,
+              "summary":None,
+              "next_move":None,
               "risk":None,"requires_founder":False,
               "decision_needed":None,"why_founder":None,
               "after_decision":None,"operation":None}
@@ -335,6 +281,62 @@ def snapshot():
       "executive_state":("UNRESOLVED_FAILURE" if latest_is_unresolved else
         "FOUNDER_ATTENTION" if report["requires_founder"] else
         "ACTIVE_WORK" if operation or active else "IDLE")}
+
+def snapshot():
+    projects=Project.query.filter_by(
+      environment="LIVE").order_by(Project.updated_at.desc()).all()
+    active=[project_view(project) for project in projects
+      if project.status in ACTIVE_PROJECT]
+    recent_tasks=(Task.query.join(Project).filter(
+      Project.environment=="LIVE",Task.status=="DONE")
+      .order_by(Task.completed_at.desc()).limit(6).all())
+    recent_meetings=(Meeting.query.filter(Meeting.status.in_(
+      ["ENDED","TERMINATED_BY_FOUNDER"]))
+      .order_by(Meeting.ended_at.desc()).limit(4).all())
+    attention=_attention()
+    meetings=[]
+    for meeting in Meeting.query.filter(
+      Meeting.status.in_(OPEN_MEETING)).order_by(Meeting.created_at.desc()).all():
+        tokens,cost=meeting_usage(meeting)
+        meetings.append({"meeting":meeting,"tokens":tokens,"cost":cost,
+          "participants":[p.employee for p in meeting.participants
+            if p.removed_at is None]})
+    operation=Operation.query.filter(Operation.status.in_(
+      ["PLANNED","WAITING_FOR_FOUNDER","RUNNING","PAUSED"])).order_by(
+      Operation.updated_at.desc()).first()
+    conversation=_conversation()
+    latest=conversation[-1] if conversation else None
+    primary=(latest if latest and latest["run"].status=="SUCCEEDED"
+      and latest.get("ceo") else None)
+    recent_operation=Operation.query.filter_by(status="COMPLETED").order_by(
+      Operation.ended_at.desc(),Operation.updated_at.desc()).first()
+    visible_active=[item for item in active if not (
+      recent_operation and item["project"].id==recent_operation.project_id)]
+    failures=unresolved_founder_failures()
+    latest_failed=bool(
+      latest and latest["run"].status=="FAILED"
+      and latest["run"].resolution_status is None)
+    return {
+      "company":get_company(),
+      "ceo":Employee.query.filter_by(slug="ceo").first(),
+      "spent":spent(),"remaining":remaining(),"today_spend":_today_spend(),
+      "active":visible_active[:3],"attention":attention,"recent_tasks":recent_tasks,
+      "recent_meetings":recent_meetings,"meetings":meetings,
+      "activity":_activity(),"conversation":conversation,
+      "primary_response":primary,
+      "report":{"summary":(
+        primary["ceo"] if primary else latest.get("ceo")
+        if latest_failed and latest else None)},
+      "operation_briefing":_operation_briefing(operation) if operation else None,
+      "recent_operation":(
+        _operation_briefing(recent_operation) if recent_operation else None),
+      "unresolved_attention":failures,
+      "executive_state":(
+        "UNRESOLVED_FAILURE" if latest_failed else
+        "FOUNDER_ATTENTION" if attention or failures or (
+          operation and operation.status in {
+            "PLANNED","WAITING_FOR_FOUNDER","PAUSED"})
+        else "ACTIVE_WORK" if operation or visible_active else "IDLE")}
 
 def shell_snapshot():
     company=get_company()

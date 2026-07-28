@@ -45,8 +45,8 @@ def _command_submit():
         elif isinstance(proposal,Operation): pass
         elif proposal: pass
         elif run.parsed_output_json: pass
-        else: flash("CEO output was preserved but did not create Company authority.","error")
-    except Exception as ex: flash(str(ex),"error")
+    except Exception:
+        db.session.rollback()
     return redirect(url_for("main.command_center"))
 
 @bp.route("/command",methods=["GET","POST"])
@@ -63,8 +63,8 @@ def command_failure_acknowledge(id):
         command_service.resolve_founder_failure(
           run,"ACKNOWLEDGED",request.form.get("note") or "Founder acknowledged")
         flash("The unresolved request was acknowledged; its audit remains unchanged.","ok")
-    except Exception as ex:
-        flash(str(ex),"error")
+    except Exception:
+        db.session.rollback()
     return redirect(url_for("main.command_center"))
 
 @bp.route("/command/failures/<int:id>/replace",methods=["POST"])
@@ -79,8 +79,8 @@ def command_failure_replace(id):
         command_service.resolve_founder_failure(
           failed,"REPLACED","Founder submitted an explicit replacement",
           replacement)
-    except Exception as ex:
-        flash(str(ex),"error")
+    except Exception:
+        db.session.rollback()
     return redirect(url_for("main.command_center"))
 
 @bp.route("/command/proposals/<int:id>/approve",methods=["POST"])
@@ -89,7 +89,7 @@ def command_approve(id):
     try:
         project=materialize_project_plan(proposal)
         flash(f"{project.name} approved. Governed Tasks are ready for execution.","ok")
-    except Exception as ex: flash(str(ex),"error")
+    except Exception: db.session.rollback()
     return redirect(url_for("main.command_center"))
 
 @bp.route("/operations/<int:id>/approve",methods=["POST"])
