@@ -1,0 +1,137 @@
+{% extends "hq_base.html" %}
+{% block title %}Headquarters · Eason One{% endblock %}
+{% block body_class %}v017-hq-page{% endblock %}
+{% block pulse %}
+  <span class="hq-pulse-item state-{{ snapshot.state|lower }}"><i class="pulse-dot"></i>{{ snapshot.state|replace('_',' ') }}</span>
+  <span class="hq-pulse-item quiet">{{ snapshot.active_projects|length }} ACTIVE PROJECT{{ '' if snapshot.active_projects|length==1 else 'S' }}</span>
+  {% if snapshot.attention %}<a class="hq-pulse-item warning" href="#needs-you">{{ snapshot.attention|length }} NEED{{ '' if snapshot.attention|length==1 else 'S' }} YOU</a>{% endif %}
+{% endblock %}
+{% block content %}
+<div class="v017-home">
+  <header class="v017-company-head">
+    <div>
+      <span class="hq-kicker">FOUNDER CONTROL</span>
+      <h1>{{ snapshot.company.name if snapshot.company else 'Eason One' }}</h1>
+      <p>{% if snapshot.state == 'NEEDS_YOU' %}The company is waiting on a real Founder decision.{% elif snapshot.state == 'WORKING' %}The company owns active work. You only need to intervene when a real decision appears.{% else %}The company is ready for your next outcome.{% endif %}</p>
+    </div>
+    <div class="v017-company-metrics">
+      <div><span>ACTIVE STAFF</span><b>{{ snapshot.working|length }}</b></div>
+      <div><span>PROJECTS</span><b>{{ snapshot.active_projects|length }}</b></div>
+      <div><span>NEEDS YOU</span><b>{{ snapshot.attention|length }}</b></div>
+      <div><span>API SPEND</span><b>NT$ {{ snapshot.spent|money }}</b><small>{{ snapshot.remaining|money }} left</small></div>
+    </div>
+  </header>
+
+  <section class="pulse-v1" data-company-pulse>
+    {% set pulse = snapshot.pulse %}
+    {% include "_company_pulse.html" with context %}
+  </section>
+
+  <section class="v017-command-grid">
+    <section class="v017-ceo-console" id="ceo-line" data-ceo-dialogue>
+      <header>
+        <div class="v017-avatar ceo">CEO</div>
+        <div><span class="hq-kicker">CEO · DIRECT LINE</span><h2>{{ snapshot.ceo.name if snapshot.ceo else 'CEO' }}</h2><p>Give me the outcome. I will organize the work and return when it is done or when your authority is actually required.</p></div>
+        <span class="v017-live-chip"><i></i><b data-dialogue-state>READY</b></span>
+      </header>
+
+      <div class="v017-ceo-thread" data-ceo-thread aria-live="polite">
+        {% for message in snapshot.ceo_dialogue %}
+          <article class="dialogue-message role-{{ message.role|lower }}">
+            <span>{{ message.role }}</span>
+            <div>{{ message.content }}</div>
+            {% if message.action_href %}<a class="dialogue-source-link" href="{{ message.action_href }}">{{ message.action_label }}</a>{% endif %}
+          </article>
+        {% else %}
+          <div class="v017-empty"><b>No conversation yet.</b><p>Describe one real outcome. The CEO will turn it into company work.</p></div>
+        {% endfor %}
+      </div>
+
+      <form class="v017-ceo-composer" data-ceo-office-form{% if snapshot.focus_project %} data-project-id="{{ snapshot.focus_project.id }}"{% endif %}>
+        <textarea name="request" required placeholder="{% if snapshot.focus_project %}What should happen next in {{ snapshot.focus_project.name }}?{% else %}What outcome do you want the company to achieve?{% endif %}"></textarea>
+        <div><span>{% if snapshot.focus_project %}Project context · {{ snapshot.focus_project.name }}{% else %}CEO chooses people, tools and the smallest sufficient path{% endif %}</span><button class="hq-button" type="submit">SEND TO CEO</button></div>
+      </form>
+      <details class="ceo-technical-audit" data-ceo-runtime hidden><summary>Technical audit</summary><div class="runtime-head"><b data-ceo-route>AUTO</b><em data-ceo-elapsed>0.0s</em></div><p data-runtime-detail>Ready.</p><ol hidden><li data-runtime-step="received"></li><li data-runtime-step="snapshot"></li><li data-runtime-step="judgment"></li><li data-runtime-step="complete"></li></ol></details>
+    </section>
+
+    <aside class="v017-founder-column">
+      <section class="v017-panel v017-needs" id="needs-you">
+        <header><div><span class="hq-kicker">NEEDS YOU</span><h2>Founder decisions</h2></div>{% if snapshot.attention %}<b class="v017-count">{{ snapshot.attention|length }}</b>{% endif %}</header>
+        <div class="v017-stack">
+          {% for item in snapshot.attention[:5] %}
+            <a class="v017-decision" href="{{ item.href or item.project_href }}"><span>DECISION</span><b>{{ item.title }}</b><p>{{ item.reason }}</p><em>OPEN →</em></a>
+          {% else %}
+            <div class="v017-ok"><i>✓</i><div><b>Nothing needs you.</b><p>Approved work may continue without Founder babysitting.</p></div></div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="v017-panel">
+        <header><div><span class="hq-kicker">COMPANY FLOOR</span><h2>Who owns the next move.</h2></div><a href="/headquarters/people">PEOPLE →</a></header>
+        <div class="v017-workers">
+          {% for row in snapshot.working[:6] %}
+            <a href="/headquarters/employees/{{ row.employee.id }}"><i>{{ row.initials }}</i><div><b>{{ row.employee.name }}</b><p>{{ row.work.title if row.work else (row.task.title if row.task else 'Company work') }}</p>{% if row.project %}<small>{{ row.project.name }}{% if row.wait %} · {{ row.wait.reason }}{% endif %}</small>{% endif %}</div><em>{{ row.status }}</em></a>
+          {% else %}
+            <div class="v017-empty compact"><b>No Employee owns an active Work item right now.</b><p>Idle is shown as idle.</p></div>
+          {% endfor %}
+        </div>
+      </section>
+    </aside>
+  </section>
+
+  <section class="v017-panel v017-work-command presentation-current-work" id="work-command">
+    <header><div><span class="hq-kicker">CURRENT COMPANY WORK</span><h2>Only work that can still change the outcome.</h2></div><a href="/headquarters/projects">PROJECTS →</a></header>
+    <div class="v017-activity">
+      {% set visible_work = namespace(count=0) %}
+      {% for lane in ['ACTIVE', 'WAITING', 'BLOCKED', 'FAILED'] %}
+        {% for row in snapshot.work_command.lanes[lane][:8] %}
+          {% set visible_work.count = visible_work.count + 1 %}
+          <a href="{{ row.href }}"><time>{{ row.updated_label }}</time><div><b>{{ row.work.title }}</b><p>{{ row.project.name }} · {{ row.employee.name if row.employee else 'No accountable Employee recorded' }}{% if row.wait %} · {{ row.wait.reason }}{% endif %}</p></div><span>{{ 'NEEDS ATTENTION' if lane == 'BLOCKED' else lane }}</span></a>
+        {% endfor %}
+      {% endfor %}
+      {% if visible_work.count == 0 %}<div class="v017-empty compact"><b>No open company Work right now.</b><p>Completed and cancelled records are kept in history instead of competing with current work.</p></div>{% endif %}
+    </div>
+    {% set terminal_count = snapshot.work_command.counts.COMPLETED + snapshot.work_command.counts.CANCELLED %}
+    {% if terminal_count %}
+      <details class="presentation-history-fold"><summary>{{ terminal_count }} closed Work record{{ '' if terminal_count == 1 else 's' }} · audit history</summary><div class="v017-activity">
+        {% for lane in ['COMPLETED', 'CANCELLED'] %}
+          {% for row in snapshot.work_command.lanes[lane][:12] %}
+            <a href="{{ row.href }}"><time>{{ row.updated_label }}</time><div><b>{{ row.work.title }}</b><p>{{ row.project.name }} · {{ row.employee.name if row.employee else 'Company' }}</p></div><span>{{ lane }}</span></a>
+          {% endfor %}
+        {% endfor %}
+      </div></details>
+    {% endif %}
+  </section>
+
+  <section class="v017-projects">
+    <header class="v017-section-head"><div><span class="hq-kicker">PROJECTS</span><h2>What the company owns.</h2></div><a href="/headquarters/projects">ALL PROJECTS →</a></header>
+    <div class="v017-project-grid">
+      {% for row in snapshot.active_projects[:8] %}
+        <a class="v017-project-card state-{{ row.state|lower }}" href="{{ row.href }}">
+          <header><span><i></i>{{ row.state|replace('_',' ') }}</span><time>{{ row.updated_label }}</time></header>
+          <h3>{{ row.project.name }}</h3>
+          <p>{{ row.current_direction }}</p>
+          <div class="v017-project-live"><b>NOW</b><span>{{ row.state_detail }}</span></div>
+          <div class="v017-progress"><i><u style="width:{{ row.progress }}%"></u></i><b>{{ row.progress }}%</b></div>
+          <footer><span>{{ row.done }}/{{ row.total }} work closed</span><span>NT$ {{ row.cost|money }}</span></footer>
+        </a>
+      {% else %}
+        <button class="v017-new-project" type="button" onclick="document.querySelector('[name=request]')?.focus()"><b>＋</b><span>Give the CEO the first real Project.</span></button>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="v017-panel v017-activity-panel">
+    <header><div><span class="hq-kicker">RECENT COMPANY CHANGE</span><h2>What actually happened.</h2></div></header>
+    <div class="v017-activity">
+      {% for item in snapshot.activity[:8] %}<a href="{{ item.href }}"><time>{{ item.age }}</time><div><b>{{ item.title }}</b><p>{{ item.detail }}</p></div><span>{{ item.kind }}</span></a>{% else %}<div class="v017-empty compact"><b>No company activity yet.</b></div>{% endfor %}
+    </div>
+  </section>
+
+  <section class="ceo-operation-live v017-compat-runtime" data-ceo-operation-live hidden>
+    <header><div><span class="hq-kicker">APPROVED WORK</span><h2 data-operation-title>Project work</h2></div><a href="/headquarters/projects" data-operation-open>OPEN PROJECT →</a></header>
+    <div class="operation-live-grid"><article><span>STATE</span><b data-operation-status>READY</b><small data-operation-stage></small></article><article><span>PROGRESS</span><b data-operation-progress>0%</b><small data-operation-tasks>0/0 work</small></article><article><span>AUTHORITY LEFT</span><b>NT$ <i data-operation-remaining>0</i></b><small>of NT$ <i data-operation-budget>0</i></small></article></div>
+    <div class="operation-workers" data-operation-workers></div><div data-operation-meeting hidden><h3 data-meeting-title></h3><p data-meeting-summary></p><small data-meeting-usage></small></div><div data-operation-event></div><div data-budget-request hidden></div><button type="button" data-resume-operation hidden>RESUME</button>
+  </section>
+</div>
+{% endblock %}

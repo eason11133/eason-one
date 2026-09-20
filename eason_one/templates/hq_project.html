@@ -1,0 +1,174 @@
+{% extends "hq_base.html" %}
+{% block title %}{{ snapshot.project.name }} · Eason One{% endblock %}
+{% block body_class %}v017-project-page project-founder-v2-page{% endblock %}
+{% block pulse %}
+  <a class="hq-pulse-item" href="/headquarters/projects">← PROJECTS</a>
+  <span class="hq-pulse-item state-{{ snapshot.card.state|lower }}"><i class="pulse-dot"></i>{{ snapshot.card.state|replace('_',' ') }}</span>
+  <span class="hq-pulse-item quiet">{{ snapshot.card.done }}/{{ snapshot.card.total }} WORK CLOSED · NT$ {{ snapshot.cost|money }} OBSERVED MODEL COST</span>
+{% endblock %}
+{% block content %}
+{% set card=snapshot.card %}
+<div class="project-founder-v2" data-project-live-root data-project-id="{{ snapshot.project.id }}" data-project-state="{{ card.state }}">
+  <header class="project-founder-v2-head">
+    <div>
+      <a class="v017-back" href="/headquarters/projects">PROJECTS /</a><span> #{{ snapshot.project.id }}</span>
+      <h1>{{ snapshot.project.name }}</h1>
+      <p>{{ snapshot.governing.objective }}</p>
+    </div>
+    <aside class="project-founder-v2-state state-{{ card.state|lower }}" data-project-signal>
+      <span>COMPANY NOW</span>
+      <b data-project-state-label>{{ card.state|replace('_',' ') }}</b>
+      <p data-project-state-detail>{{ card.state_detail }}</p>
+      {% if snapshot.attention %}<em>FOUNDER ACTION REQUIRED</em>{% elif card.state == 'RESULT_READY' %}<em>RESULT READY FOR YOU</em>{% else %}<em>NO FOUNDER ACTION REQUIRED</em>{% endif %}
+    </aside>
+  </header>
+
+  {% if card.is_dormant_history %}
+    <section class="project-founder-v2-alert historical"><b>HISTORICAL · NOT ACTIVE</b><p>This pre-v0.18 Project is retained for audit only.</p></section>
+  {% endif %}
+
+  <section class="project-founder-v2-command">
+    <div class="project-founder-v2-focus">
+      <span class="hq-kicker">CURRENT MOVE</span>
+      {% if snapshot.focus_work %}
+        {% set focus=snapshot.focus_work %}
+        <div class="project-focus-status state-{{ focus.founder_state|lower }}">{{ focus.founder_state|replace('_',' ') }}</div>
+        <h2>{{ focus.work.title }}</h2>
+        <p>{{ focus.founder_detail }}</p>
+        <div class="project-focus-owner">
+          <b>{{ focus.employee.name if focus.employee else 'Company' }}</b>
+          {% if focus.active_run_purpose == 'TASK_REVIEW' and focus.reviewer %}
+            <span>Reviewing now · {{ focus.reviewer.name }}{% if focus.review_provider %} · {{ focus.review_provider }}{% endif %}</span>
+          {% elif focus.execution_provider %}
+            <span>Execution · {{ focus.execution_provider }}</span>
+          {% endif %}
+        </div>
+        <div class="project-focus-next"><span>NEXT</span><b>{{ focus.founder_next }}</b></div>
+      {% elif card.state == 'RESULT_READY' %}
+        <div class="project-focus-status state-result_ready">RESULT READY</div>
+        <h2>The company finished the governed work.</h2>
+        <p>Open the verified result below and decide whether to accept the Project.</p>
+      {% else %}
+        <div class="project-focus-status state-idle">{{ card.state|replace('_',' ') }}</div>
+        <h2>No delivery Work owns the next move right now.</h2>
+        <p>{{ card.state_detail }}</p>
+      {% endif %}
+    </div>
+    <div class="project-founder-v2-money">
+      <article><span>PROJECT CAP</span><b>{% if snapshot.cost_breakdown.budget_limit is not none %}NT$ {{ snapshot.cost_breakdown.budget_limit|money }}{% else %}—{% endif %}</b></article>
+      <article><span>AUTHORITY USED</span><b>{% if snapshot.cost_breakdown.execution_authority_used is not none %}NT$ {{ snapshot.cost_breakdown.execution_authority_used|money }}{% else %}—{% endif %}</b></article>
+        <article><span>EXECUTION AUTHORITY LEFT</span><b>{% if snapshot.cost_breakdown.remaining is not none %}NT$ {{ snapshot.cost_breakdown.remaining|money }}{% else %}—{% endif %}</b></article>
+      <article><span>OBSERVED MODEL COST</span><b>NT$ {{ snapshot.cost_breakdown.observed_model_cost|money }}</b><small>includes costs outside the execution envelope when applicable</small></article>
+    </div>
+  </section>
+
+  {% if snapshot.attention and not card.is_dormant_history %}
+  <section class="project-founder-v2-decisions" id="needs-you">
+    <header><div><span class="hq-kicker">NEEDS YOU</span><h2>Only decisions that change Project authority.</h2></div></header>
+    {% for item in snapshot.attention %}
+      {% if item.governance_action %}
+        <article class="v017-decision v020-governance-decision">
+          <span>{{ item.authority_type|replace('_',' ') }}</span><b>{{ item.title }}</b><p>{{ item.reason }}</p>
+          <div class="v020-governance-actions">
+            <form method="post" action="{{ item.governance_action }}"><input type="hidden" name="action" value="APPROVE"><button class="hq-button" type="submit">YES — APPROVE EXACT REQUEST</button></form>
+            <form method="post" action="{{ item.governance_action }}"><input type="hidden" name="action" value="REJECT"><button type="submit">NO — REJECT</button></form>
+          </div>
+        </article>
+      {% else %}
+        <a class="v017-decision" href="{{ item.href or item.project_href }}"><span>DECISION</span><b>{{ item.title }}</b><p>{{ item.reason }}</p><em>OPEN →</em></a>
+      {% endif %}
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if snapshot.handoff and snapshot.handoff.node_count %}
+  <section class="project-founder-v2-flow" id="handoff">
+    <header><div><span class="hq-kicker">PROJECT FLOW</span><h2>One view of how the company is moving the outcome forward.</h2></div><span>{{ snapshot.handoff.node_count }} WORK · {{ snapshot.handoff.edge_count }} HANDOFF{{ '' if snapshot.handoff.edge_count == 1 else 'S' }}</span></header>
+    <div class="project-flow-stages">
+      {% for stage in snapshot.handoff.stages %}
+        <section class="project-flow-stage">
+          <div class="project-flow-stage-label"><span>STAGE</span><b>{{ stage.index + 1 }}</b></div>
+          <div class="project-flow-stage-nodes">
+            {% for row in stage.nodes %}
+              <article class="project-flow-node state-{{ row.founder_state|lower }}">
+                <header><span>{{ row.founder_state|replace('_',' ') }}</span>{% if row.retry_attempt %}<em>AUTO RECOVERY #{{ row.retry_attempt }}</em>{% endif %}</header>
+                <h3>{{ row.work.title }}</h3>
+                <p class="project-flow-owner">{{ row.employee.name if row.employee else 'Unassigned company Work' }}</p>
+                {% if row.execution_provider %}<small>EXECUTION · {{ row.execution_provider }}</small>{% endif %}
+                {% if row.latest_review_run %}<small>REVIEW · {{ row.reviewer.name if row.reviewer else 'Independent reviewer' }} · {{ row.review_provider }}</small>{% endif %}
+                {% if row.dependency_names %}<small>FROM · {{ row.dependency_names|join(' · ') }}</small>{% else %}<small>START · no upstream dependency</small>{% endif %}
+                <div class="project-flow-next"><span>NEXT</span><b>{{ row.founder_next }}</b></div>
+                {% if row.selection_evidence or row.market_contract %}
+                  <details class="project-flow-evidence"><summary>Why this owner / Market contract</summary>
+                    {% if row.selection_evidence and row.selection_evidence.reason %}<p><b>WHY THIS EMPLOYEE</b><br>{{ row.selection_evidence.reason }}</p>{% endif %}
+                    {% if row.market_contract %}<p><b>EASON MARKET</b><br>Contract #{{ row.market_contract.contract_id }} · {{ row.market_contract.agreed_ec }} EC · {{ row.market_contract.status }}</p>{% endif %}
+                  </details>
+                {% endif %}
+              </article>
+            {% endfor %}
+          </div>
+          {% if not loop.last %}<div class="project-flow-arrow" aria-hidden="true">→</div>{% endif %}
+        </section>
+      {% endfor %}
+    </div>
+    <p class="presentation-truth-note">Projected only from persisted Work, WorkDependency, Execution and verification truth. No fake activity.</p>
+  </section>
+  {% endif %}
+
+  {% if snapshot.results %}
+  <section class="project-founder-v2-results" id="results">
+    <header><div><span class="hq-kicker">RESULT</span><h2>What the company actually produced.</h2></div><a href="/headquarters/results">ALL RESULTS →</a></header>
+    <div class="v017-results">
+      {% for result in snapshot.results[:6] %}
+        <a href="{{ result.href }}"{% if result.deliverables|selectattr('available')|list %} target="_blank" rel="noopener"{% endif %}><span class="v017-result-mark">✓</span><div><small>{{ result.verification }} · {{ result.kind|replace('_',' ') }}</small><h3>{{ result.title }}</h3><p>{{ result.summary }}</p>{% if result.deliverables %}<small>{% for file in result.deliverables[:3] %}{{ file.path }}{% if not loop.last %} · {% endif %}{% endfor %}</small>{% endif %}</div><b>{% if result.deliverables|selectattr('available')|list %}OPEN RESULT →{% else %}VIEW EVIDENCE →{% endif %}</b></a>
+      {% endfor %}
+    </div>
+    {% if card.state == 'RESULT_READY' and snapshot.results[0].kind == 'PROJECT_RESULT' and snapshot.results[0].current_project_result and snapshot.results[0].verification == 'VALIDATED' %}
+      <form method="post" action="/headquarters/projects/{{ snapshot.project.id }}/complete" class="project-result-accept"><button class="hq-button" type="submit">YES — ACCEPT & COMPLETE PROJECT</button></form>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <details class="project-founder-v2-details">
+    <summary>Project details & audit</summary>
+    <div class="project-founder-v2-details-grid">
+      <section class="v017-panel">
+        <header><div><span class="hq-kicker">WORK DETAILS</span><h2>Durable commitments.</h2></div><span>{{ card.done }}/{{ card.total }} closed</span></header>
+        <div class="v017-work-list">
+          {% for row in snapshot.works if not row.is_management %}
+            <article class="state-{{ row.founder_state|lower }} presentation-work-row"><div class="v017-work-state"><i></i><span>{{ row.founder_state|replace('_',' ') }}</span></div><div><h3>{{ row.work.title }}</h3><p>{{ row.founder_detail }}</p><small>{{ row.employee.name if row.employee else 'Unassigned' }}{% if row.required_capabilities %} · {{ row.required_capabilities|join(' + ') }}{% endif %}</small>{% if row.latest_run %}<a class="presentation-audit-link" href="/headquarters/system/runs/{{ row.latest_run.id }}">RUN AUDIT →</a>{% endif %}</div></article>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="v017-panel project-cost-truth">
+        <header><div><span class="hq-kicker">COST TRUTH</span><h2>Billing vs execution authority.</h2></div><a href="/headquarters/finance">FINANCE →</a></header>
+        <div class="project-cost-hero">
+          <div><span>OBSERVED COST</span><strong>NT$ {{ snapshot.cost_breakdown.observed_model_cost|money }}</strong></div>
+          <div><span>AUTHORITY USED</span><strong>{% if snapshot.cost_breakdown.execution_authority_used is not none %}NT$ {{ snapshot.cost_breakdown.execution_authority_used|money }}{% else %}—{% endif %}</strong></div>
+            <div><span>EXECUTION AUTHORITY LEFT</span><strong>{% if snapshot.cost_breakdown.remaining is not none %}NT$ {{ snapshot.cost_breakdown.remaining|money }}{% else %}—{% endif %}</strong></div>
+        </div>
+        {% if snapshot.cost_breakdown.outside_execution_envelope > 0 %}<p>NT$ {{ snapshot.cost_breakdown.outside_execution_envelope|money }} of observed model cost sits outside the Project execution envelope (for example pre-approval planning).</p>{% endif %}
+        {% if snapshot.cost_breakdown.by_employee %}<div class="project-cost-list"><b>BY EMPLOYEE</b>{% for row in snapshot.cost_breakdown.by_employee[:6] %}<div><span>{{ row.employee_name }}</span><strong>NT$ {{ row.amount|money }}</strong></div>{% endfor %}</div>{% endif %}
+        {% if snapshot.cost_breakdown.by_provider %}<div class="project-cost-list"><b>BY PROVIDER</b>{% for row in snapshot.cost_breakdown.by_provider[:6] %}<div><span>{{ row.provider|upper }}</span><strong>NT$ {{ row.amount|money }}</strong></div>{% endfor %}</div>{% endif %}
+        <p class="presentation-truth-note">{{ snapshot.cost_breakdown.truth_note }}</p>
+      </section>
+
+      <section class="v017-panel">
+        <header><div><span class="hq-kicker">TEAM</span><h2>Persistent Employees.</h2></div><a href="/headquarters/people">ALL →</a></header>
+        <div class="v017-team">{% for row in snapshot.team %}<a href="/headquarters/employees/{{ row.employee.id }}"><i>{{ row.initials }}</i><div><b>{{ row.employee.name }}</b><span>{{ row.employee.position.name if row.employee.position else 'Employee' }}</span></div>{% if row.working %}<em>LIVE</em>{% endif %}</a>{% endfor %}</div>
+      </section>
+
+      <section class="v017-panel">
+        <header><div><span class="hq-kicker">HISTORY</span><h2>What changed.</h2></div></header>
+        <div class="v017-activity">{% for item in snapshot.activity %}<a href="{{ item.href }}"><time>{{ item.age }}</time><div><b>{{ item.title }}</b><p>{{ item.detail }}</p></div><span>{{ item.kind }}</span></a>{% else %}<div class="v017-empty compact">No Project activity yet.</div>{% endfor %}</div>
+      </section>
+
+      {% if snapshot.meetings %}
+      <section class="v017-panel"><header><div><span class="hq-kicker">MEETINGS</span><h2>Project room.</h2></div><a href="/headquarters/meetings">ROOM →</a></header><div class="v017-mini-list">{% for meeting in snapshot.meetings[:5] %}<a href="/headquarters/meetings/{{ meeting.id }}"><div><b>{{ meeting.title }}</b><span>{{ meeting.status|replace('_',' ') }}</span></div><em>→</em></a>{% endfor %}</div></section>
+      {% endif %}
+    </div>
+    <div class="project-founder-v2-advanced"><p>Internal Operation/Mission records are audit compatibility detail and do not own the vNext Project lifecycle.</p>{% for operation in snapshot.operations %}<a href="/headquarters/missions/{{ operation.id }}"><b>Mission #{{ operation.id }} · {{ operation.title }}</b><span>{{ operation.status }} · {{ operation.route_type }}</span></a>{% endfor %}</div>
+  </details>
+</div>
+{% endblock %}

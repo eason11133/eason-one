@@ -1,0 +1,64 @@
+<div class="pulse-v1-shell">
+  <header class="pulse-v1-head">
+    <div>
+      <span class="hq-kicker">COMPANY NOW</span>
+      <h2>What the company is actually doing.</h2>
+      <p>Only persisted Work, Execution, recovery and provider truth appears here.</p>
+    </div>
+    <div class="pulse-v1-sync">
+      <i class="pulse-v1-truth-dot"></i>
+      <span>LIVE DB</span>
+      <b data-pulse-synced>just synced</b>
+    </div>
+  </header>
+
+  <div class="pulse-v1-counts" aria-label="Current company state counts">
+    {% for key, label in [('WORKING','WORKING'),('WAITING','WAITING'),('RECOVERING','RECOVERING'),('NEEDS_YOU','NEEDS YOU'),('IDLE','IDLE')] %}
+      <div class="state-{{ key|lower|replace('_','-') }}"><span>{{ label }}</span><b>{{ pulse.counts.get(key, 0) }}</b></div>
+    {% endfor %}
+  </div>
+
+  <div class="pulse-v1-layout">
+    <section class="pulse-v1-floor" aria-label="Current Employee work">
+      {% for row in pulse.rows %}
+        <article class="pulse-v1-worker state-{{ row.status|lower|replace('_','-') }}">
+          <a class="pulse-v1-worker-main" href="{{ row.href }}">
+            <div class="pulse-v1-person"><i>{{ row.initials }}</i><div><b>{{ row.employee.name }}</b><small>{{ row.employee.position.name if row.employee.position else (row.employee.slug or 'Employee') }}</small></div></div>
+            <span class="pulse-v1-state">{{ row.status|replace('_',' ') }}</span>
+            <h3>{{ row.title if row.title else row.work.title }}</h3>
+            {% if row.request_preview %}<p class="pulse-v1-request">{{ row.request_preview }}</p>{% endif %}
+            {% if row.project %}<p class="pulse-v1-project">{{ row.project.name }}</p>{% endif %}
+            <div class="pulse-v1-runtime">
+              {% if row.provider %}<span><b>AI</b>{{ row.provider }}</span>{% endif %}
+              {% if row.elapsed %}<span><b>ELAPSED</b>{{ row.elapsed }}</span>{% endif %}
+              <span><b>LAST TRUTH</b>{{ row.last_activity }}</span>
+            </div>
+            <p class="pulse-v1-detail">{{ row.detail }}</p>
+            <div class="pulse-v1-next"><b>NEXT</b><span>{{ row.next_step }}</span></div>
+          </a>
+          {% if row.audit_href %}<a class="pulse-v1-audit" href="{{ row.audit_href }}">RUN AUDIT →</a>{% endif %}
+        </article>
+      {% else %}
+        <div class="pulse-v1-idle">
+          <b>The company is idle.</b>
+          <p>No current v0.20 Work or live Founder-request Execution is persisted right now. Eason One will not invent activity.</p>
+        </div>
+      {% endfor %}
+    </section>
+
+    <aside class="pulse-v1-stream">
+      <header><span class="hq-kicker">LIVE ACTIVITY</span><h3>Durable truth stream</h3></header>
+      <div>
+        {% for item in pulse.activity %}
+          <a href="{{ item.href }}">
+            <time>{{ item.age }}</time>
+            <i class="kind-{{ item.kind|lower }}"></i>
+            <div><b>{{ item.title }}</b><p>{{ item.detail }}</p></div>
+          </a>
+        {% else %}
+          <div class="pulse-v1-stream-empty">No current execution activity.</div>
+        {% endfor %}
+      </div>
+    </aside>
+  </div>
+</div>

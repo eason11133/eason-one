@@ -1,0 +1,66 @@
+{% extends "hq_base.html" %}
+{% block title %}Eason Market · Eason One{% endblock %}
+{% block body_class %}hq-market-page{% endblock %}
+{% block pulse %}<span class="hq-pulse-item"><i class="pulse-dot"></i>{{ snapshot.version }}</span><span class="hq-pulse-item">{{ snapshot.metrics.settled }} SETTLED</span>{% endblock %}
+{% block content %}
+<section class="market-arrival">
+  <div>
+    <span class="hq-kicker">EASON MARKET · INTERNAL LABOR ECONOMY</span>
+    <h1>Work becomes demand. Persistent Employees compete on proven ability, availability, and evidence-backed compensation.</h1>
+    <p>V1.3 is a real intra-company contract and settlement loop around governed Work. Accepted outcomes now also change future EC compensation, so experience has an economic consequence as well as a staffing consequence. It cannot create capability, bypass Project authority, or spend the Founder’s TWD budget.</p>
+  </div>
+  <div class="market-version-badge"><b>V1.3</b><span>INTERNAL / DURABLE</span></div>
+</section>
+
+<section class="market-metrics">
+  <article><span>Market orders</span><strong>{{ snapshot.metrics.orders }}</strong><small>durable Work demand</small></article>
+  <article><span>Open / active</span><strong>{{ snapshot.metrics.open }}</strong><small>not yet settled</small></article>
+  <article><span>Settled contracts</span><strong>{{ snapshot.metrics.settled }}</strong><small>accepted Work only</small></article>
+  <article><span>Superseded</span><strong>{{ snapshot.metrics.superseded }}</strong><small>unpaid prior assignment generations</small></article>
+  <article><span>Voided / disputed</span><strong>{{ snapshot.metrics.voided }} / {{ snapshot.metrics.disputed }}</strong><small>zero payment on invalid terminal Work</small></article>
+  <article><span>Participants</span><strong>{{ snapshot.metrics.participants }}</strong><small>eligible Employees who offered</small></article>
+  <article><span>Settled volume</span><strong>{{ snapshot.metrics.volume_ec }} EC</strong><small>internal labor capital</small></article>
+</section>
+
+<section class="market-explainer-grid">
+  <article class="market-mechanism-card">
+    <span class="hq-kicker">HOW V1.3 ACTUALLY WORKS</span>
+    <h2>Authority first. Market second. Payment last.</h2>
+    <ol>{% for row in snapshot.mechanism %}<li>{{ row }}</li>{% endfor %}</ol>
+  </article>
+  <article class="market-boundary-card">
+    <span class="hq-kicker">CURRENT BOUNDARY</span>
+    <h2>What this does not pretend to be.</h2>
+    <ul>{% for row in snapshot.boundary %}<li>{{ row }}</li>{% endfor %}</ul>
+  </article>
+</section>
+
+<section class="market-orders-panel">
+  <header class="section-heading"><div><span class="hq-kicker">LIVE CONTRACT LEDGER</span><h2>Demand → offers → award → verified delivery → settlement</h2></div></header>
+  <div class="market-order-list">
+    {% for row in snapshot.orders %}
+      <article class="market-order-card">
+        <header>
+          <div><span>ORDER #{{ row.order.id }} · GEN {{ row.order.generation }} · {{ row.order.status }}</span><h3>{{ row.work.title if row.work else 'Work unavailable' }}</h3><small>{% if row.project %}<a href="/headquarters/projects/{{ row.project.id }}">Project #{{ row.project.id }} · {{ row.project.name }}</a>{% endif %} · {{ row.order.capability }}</small></div>
+          {% if row.contract %}<div class="market-award"><span>CONTRACT #{{ row.contract.id }} · GEN {{ row.contract.generation }}</span><strong>{{ row.contract.agreed_ec }} EC</strong><small>{{ row.contract.status }}</small></div>{% endif %}
+        </header>
+        <div class="market-offer-strip">
+          {% for offer in row.offers %}
+            <div class="market-offer {{ 'is-selected' if offer.status=='SELECTED' }}">
+              <span>{{ offer.status|replace('_',' ') }}</span>
+              <b>{{ offer.employee.name if offer.employee else ('EMP-' ~ offer.employee_id) }}</b>
+              <strong>{{ offer.quote_ec }} EC</strong>
+              <small>experience {{ offer.rank_json.experience_score or 0 }} · workload {{ offer.rank_json.active_workload or 0 }}</small>{% if offer.rationale_json.quote_breakdown %}<small>base {{ offer.rationale_json.quote_breakdown.base_quote_ec }} EC · experience premium +{{ offer.rationale_json.quote_breakdown.experience_premium_ec }} EC</small>{% endif %}
+            </div>
+          {% else %}<p>No persisted offers.</p>{% endfor %}
+        </div>
+        {% if row.contract_evidence %}
+          <footer><span>Seller · {{ row.contract_evidence.seller_employee_name }}</span><span>Artifact · {{ row.contract_evidence.artifact_version_id or 'awaiting accepted delivery' }}</span><span>Verification · {{ row.contract_evidence.verification_record_id or 'awaiting PASS evidence' }}</span></footer>
+        {% endif %}
+      </article>
+    {% else %}
+      <div class="signal-empty"><b>No internal-market Work has been awarded yet.</b><span>The first eligible fresh Work will create the first durable order and offers automatically during team formation.</span></div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

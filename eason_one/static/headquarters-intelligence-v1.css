@@ -1,0 +1,80 @@
+/* Eason One Founder Intelligence V1
+   Make Persistent Employee learning and Project cost truth legible without
+   turning internal scores into authority or invented performance claims. */
+
+.evolution-card>p{margin:12px 0;color:var(--hq-muted);font-size:10px;line-height:1.55}
+.evolution-capabilities{display:grid;gap:8px;margin-top:12px}
+.evolution-capability-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding:11px;border:1px solid var(--hq-line);border-radius:11px;background:rgba(6,18,25,.58)}
+.evolution-capability-row>div{display:flex;align-items:center;gap:7px;min-width:0}
+.evolution-capability-row>div span{color:#bfd4d9;font-size:9px;font-weight:800;letter-spacing:.04em}
+.evolution-capability-row>div b{padding:3px 6px;border:1px solid rgba(98,216,230,.22);border-radius:999px;color:var(--hq-cyan);font-size:7px;letter-spacing:.08em}
+.evolution-capability-row>strong{color:#9eb7be;font-size:8px;font-weight:600;white-space:nowrap}
+.evolution-capability-row>small{grid-column:1/-1;color:#66858f;font-size:7px;line-height:1.45}
+
+.presentation-selection-reason{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start;padding:8px 9px;border:1px solid rgba(98,216,230,.13);border-radius:9px;background:rgba(6,20,26,.5)}
+.presentation-selection-reason b{color:var(--v17-accent);font-size:7px;letter-spacing:.1em;white-space:nowrap}
+.presentation-selection-reason span{color:#8eaab2;font-size:8px;line-height:1.45}
+.presentation-selection-reason.compact{margin-top:8px}
+
+.project-cost-truth{overflow:hidden}
+.project-cost-hero{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:2px}
+.project-cost-hero>div{padding:10px;border:1px solid var(--hq-line);border-radius:10px;background:rgba(5,17,23,.56)}
+.project-cost-hero span,.project-cost-hero strong{display:block}
+.project-cost-hero span{color:#607f89;font-size:7px;letter-spacing:.09em}
+.project-cost-hero strong{margin-top:5px;color:#c3d7dc;font-size:11px;font-weight:650}
+.project-cost-list{display:grid;gap:6px;margin-top:13px;padding-top:11px;border-top:1px solid rgba(42,68,77,.58)}
+.project-cost-list>b{color:#688892;font-size:7px;letter-spacing:.11em}
+.project-cost-list>div{display:flex;justify-content:space-between;gap:10px;color:#91adb5;font-size:8px}
+.project-cost-list>div strong{color:#b8cdd2;font-weight:600}
+
+@media(max-width:640px){
+  .evolution-capability-row{grid-template-columns:1fr}
+  .evolution-capability-row>strong{white-space:normal}
+  .project-cost-hero{grid-template-columns:1fr}
+  .presentation-selection-reason{grid-template-columns:1fr}
+}
+
+/* Research / professor-facing explanation: vision, research questions and
+   feasibility evidence stay separate from operational metrics. */
+.research-vision-stage{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(330px,.75fr);gap:14px;margin:18px 0}
+.research-vision-north-star,.research-feasibility-card,.research-roadmap-section{border:1px solid var(--hq-line);border-radius:18px;background:rgba(7,20,28,.68);padding:19px}
+.research-vision-north-star h2{margin:7px 0 8px;font-size:24px}
+.research-vision-north-star>p{margin:0;color:#93adb5;font-size:11px;line-height:1.65;max-width:900px}
+.research-question-list{display:grid;gap:7px;margin-top:16px}
+.research-question-list>div{display:grid;grid-template-columns:28px minmax(0,1fr);gap:9px;align-items:start;padding:9px;border:1px solid rgba(46,76,86,.58);border-radius:10px;background:rgba(4,14,20,.45)}
+.research-question-list span{display:grid;place-items:center;width:24px;height:24px;border:1px solid rgba(98,216,230,.25);border-radius:8px;color:var(--hq-cyan);font-size:8px;font-weight:900}
+.research-question-list p{margin:2px 0 0;color:#b2c7cc;font-size:9px;line-height:1.5}
+.research-feasibility-card>header{display:flex;justify-content:space-between;gap:10px;padding-bottom:11px;border-bottom:1px solid var(--hq-line)}
+.research-feasibility-card>header b{color:#6f9099;font-size:7px;letter-spacing:.1em}
+.research-feasibility-row{display:grid;grid-template-columns:58px minmax(0,1fr);gap:11px;padding:11px 0;border-bottom:1px solid rgba(42,67,76,.5)}
+.research-feasibility-row>strong{font-size:25px;font-weight:560;color:#c6d9de}
+.research-feasibility-row div>b,.research-feasibility-row div>span,.research-feasibility-row div>small{display:block}
+.research-feasibility-row div>b{color:var(--hq-cyan);font-size:7px;letter-spacing:.08em;text-transform:uppercase}
+.research-feasibility-row div>span{margin-top:3px;color:#b5c9ce;font-size:9px}
+.research-feasibility-row div>small{margin-top:4px;color:#647f88;font-size:8px;line-height:1.4}
+.research-roadmap-section{margin:14px 0 18px}
+.research-roadmap-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:13px}
+.research-roadmap-card{padding:13px;border:1px solid #29434c;border-radius:12px;background:#081820}
+.research-roadmap-card>span{display:inline-block;padding:4px 6px;border:1px solid rgba(98,216,230,.2);border-radius:999px;color:#87a8b1;font-size:7px;font-weight:900;letter-spacing:.08em}
+.research-roadmap-card.status-mandatory-core{border-color:rgba(121,221,176,.3)}
+.research-roadmap-card.status-mandatory-core>span{color:var(--v17-ok);border-color:rgba(121,221,176,.3)}
+.research-roadmap-card.status-active-build{border-color:rgba(98,216,230,.32)}
+.research-roadmap-card.status-active-build>span{color:var(--hq-cyan)}
+.research-roadmap-card.status-next-build{border-color:rgba(244,191,105,.35)}
+.research-roadmap-card.status-next-build>span{color:var(--v17-warn);border-color:rgba(244,191,105,.3)}
+.research-roadmap-card.status-frozen{opacity:.6}
+.research-roadmap-card h3{margin:9px 0 5px;font-size:13px}
+.research-roadmap-card p{margin:0;color:#7897a0;font-size:9px;line-height:1.5}
+.research-boundaries{margin-top:13px;padding-top:12px;border-top:1px solid var(--hq-line)}
+.research-boundaries>b{color:#7898a1;font-size:7px;letter-spacing:.1em}
+.research-boundaries p{margin:6px 0 0;color:#73919a;font-size:8px;line-height:1.45}
+@media(max-width:980px){.research-vision-stage{grid-template-columns:1fr}.research-roadmap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.research-roadmap-grid{grid-template-columns:1fr}}
+
+/* Eason Market V1 — internal labor economy, projected from durable contract truth. */
+.market-arrival{display:flex;justify-content:space-between;gap:32px;align-items:flex-start;padding:28px;border:1px solid rgba(133,194,255,.16);background:linear-gradient(135deg,rgba(20,43,62,.76),rgba(8,18,28,.9));border-radius:22px;margin-bottom:18px}.market-arrival h1{max-width:900px;margin:7px 0 10px;font-size:clamp(28px,3vw,46px);line-height:1.05}.market-arrival p{max-width:880px;color:var(--hq-muted);line-height:1.65}.market-version-badge{min-width:126px;text-align:right}.market-version-badge b{display:block;font-size:38px}.market-version-badge span{font-size:10px;letter-spacing:.15em;color:var(--hq-muted)}
+.market-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px}.market-metrics article{padding:16px;border:1px solid var(--hq-line);background:rgba(8,17,25,.78);border-radius:16px}.market-metrics span,.market-metrics small{display:block;color:var(--hq-muted)}.market-metrics strong{display:block;font-size:24px;margin:5px 0}
+.market-explainer-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:14px;margin-bottom:18px}.market-mechanism-card,.market-boundary-card{padding:22px;border:1px solid var(--hq-line);background:rgba(8,17,25,.78);border-radius:18px}.market-explainer-grid h2{margin:6px 0 12px}.market-explainer-grid li{margin:8px 0;color:var(--hq-muted);line-height:1.5}
+.market-orders-panel{padding:22px;border:1px solid var(--hq-line);background:rgba(8,17,25,.7);border-radius:18px}.market-order-list{display:grid;gap:12px}.market-order-card{border:1px solid rgba(132,185,219,.14);background:rgba(10,23,33,.78);border-radius:16px;padding:16px}.market-order-card>header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start}.market-order-card header span,.market-order-card header small{color:var(--hq-muted);font-size:11px}.market-order-card h3{margin:4px 0 5px}.market-award{text-align:right}.market-award strong{display:block;font-size:21px;margin:3px 0}.market-offer-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin:14px 0}.market-offer{padding:11px;border:1px solid var(--hq-line);border-radius:12px}.market-offer.is-selected{border-color:rgba(114,221,166,.35);background:rgba(55,120,87,.1)}.market-offer span,.market-offer small{display:block;color:var(--hq-muted);font-size:10px}.market-offer strong{display:block;margin-top:3px}.market-order-card footer{display:flex;flex-wrap:wrap;gap:12px;border-top:1px solid var(--hq-line);padding-top:10px;color:var(--hq-muted);font-size:11px}.market-contract-inline{display:flex;gap:8px;align-items:flex-start;margin-top:7px;padding:7px 9px;border-left:2px solid rgba(114,221,166,.45);background:rgba(55,120,87,.08);font-size:11px}.market-contract-inline b{white-space:nowrap}.market-contract-inline span{color:var(--hq-muted)}.market-contract-inline.compact{padding:5px 8px}
+.market-ledger-list{display:grid;gap:7px;margin-top:10px}.market-ledger-row{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid var(--hq-line)}.market-ledger-row:last-child{border-bottom:0}.market-ledger-row small{display:block;color:var(--hq-muted)}
+@media(max-width:960px){.market-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.market-explainer-grid{grid-template-columns:1fr}.market-arrival{flex-direction:column}.market-version-badge{text-align:left}.market-order-card>header{flex-direction:column}.market-award{text-align:left}}

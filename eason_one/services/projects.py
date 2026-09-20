@@ -10,4 +10,11 @@ def create_project(name, objective, owner, priority="MEDIUM", status="PLANNING",
     return project
 def classify(project,environment):
     if environment not in {"LIVE","SMOKE","ARCHIVED"}: raise ValueError("Invalid Project classification")
+    governed = __import__(
+        "eason_one.services.project_contract", fromlist=["is_vnext_governed"]
+    ).is_vnext_governed(project)
+    if governed:
+        raise ValueError("GOVERNED_PROJECT_CLASSIFICATION_IMMUTABLE")
+    if project.environment == "ARCHIVED" and environment != "ARCHIVED":
+        raise ValueError("ARCHIVED_PROJECT_CANNOT_RETURN_TO_LIVE_CLASSIFICATION")
     project.environment=environment; db.session.commit(); return project

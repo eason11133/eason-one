@@ -12,6 +12,7 @@ from ..models import (
 from .brain import current
 from .company import remaining as company_remaining
 from .meetings import result_view
+from .stabilization import REAL_WORK, operation_kind
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,9 @@ SECTION_BUDGETS = {
     "meetings": 3000,
     "brain": 2200,
     "workforce": 2000,
+    "ceo_policy": 2600,
+    "ceo_history": 2600,
+    "company_learning": 3200,
 }
 TOTAL_BUDGET = sum(SECTION_BUDGETS.values())
 
@@ -60,6 +64,10 @@ def _working_memory(founder_request=None, operation=None, project=None):
     }
     lines = []
     for run in reversed(runs):
+        if run.operation_id:
+            run_operation=db.session.get(Operation,run.operation_id)
+            if run_operation and operation_kind(run_operation)!=REAL_WORK:
+                continue
         if run.project_id:
             run_project=db.session.get(Project,run.project_id)
             if run_project and run_project.environment!="LIVE":
@@ -80,7 +88,7 @@ def _working_memory(founder_request=None, operation=None, project=None):
 
 
 def _operation_memory(operation):
-    if not operation:
+    if not operation or operation_kind(operation)!=REAL_WORK:
         return [], 0
     cost = Decimal(db.session.query(
         func.coalesce(func.sum(CostEvent.real_cost_delta), 0)
@@ -130,12 +138,17 @@ def _project_memory(project):
     if not project:
         return [], 0
     tasks = Task.query.filter_by(project_id=project.id).order_by(Task.id.desc()).limit(10)
+    terms = __import__(
+        "eason_one.services.project_contract", fromlist=["governing_terms"]
+    ).governing_terms(project)
     lines = [
         f"Project #{project.id}: {project.name}",
-        f"Objective: {project.objective}",
+        f"Objective: {terms.get('objective') or '-'}",
         f"Status: {project.status}",
         f"State: {project.current_state_summary or '-'}",
-        f"Constraints: {project.known_constraints or '-'}",
+        f"Constraints: {', '.join(terms.get('constraints') or []) or '-'}",
+        f"Deadline: {terms.get('deadline') or '-'}",
+        f"Project budget authority: TWD {terms.get('budget_limit_twd') or '-'}",
         f"Next milestone: {project.next_milestone or '-'}",
     ]
     for task in tasks:
@@ -143,7 +156,7 @@ def _project_memory(project):
             lines.append(
                 f"Task result #{task.id} {task.title}: {task.result_summary}"
             )
-    return lines, len(lines) - 6
+    return lines, max(0, len(lines) - 8)
 
 
 def _meeting_memory(operation, project):
@@ -183,7 +196,7 @@ def _brain_memory(project):
 def _workforce_memory(operation, project):
     employees = Employee.query.filter_by(active=True).order_by(Employee.id).all()
     requests = HiringRequest.query.filter(HiringRequest.status.in_(
-        ["REQUESTED", "HR_REVIEW", "FOUNDER_REVIEW", "HIRED"]
+        ["REQUESTED", "HR_REVIEW", "FOUNDER_REVIEW", "SYSTEM_RECOVERY", "HIRED"]
     ))
     if operation:
         requests = requests.filter(
@@ -221,7 +234,62 @@ def _workforce_memory(operation, project):
     return rows, len(open_requests)
 
 
+
+def _company_learning_memory(project=None):
+    """Bounded cross-Project learning that is safe for CEO planning to consume.
+
+    Only validated, canonical accepted-Work experience is included.  This
+    context can inform decomposition, staffing expectations and review posture,
+    but it never grants capability, expands budget authority, or overrides a
+    Founder-approved Project Contract.
+    """
+    evolution = __import__(
+        "eason_one.services.employee_evolution", fromlist=["employee_profile"]
+    )
+    market = __import__(
+        "eason_one.services.market", fromlist=["employee_market_profile", "snapshot"]
+    )
+    employees = Employee.query.filter_by(active=True).order_by(Employee.id).all()
+    lines = [
+        "COMPANY LEARNING POLICY: use only validated canonical Work outcomes as experience. "
+        "Learning may influence planning/staffing/review posture, but cannot mint capability, "
+        "change Founder authority, or bypass verification."
+    ]
+    evidence_count = 0
+    for employee in employees:
+        if employee.slug == "ceo":
+            continue
+        profile = evolution.employee_profile(employee)
+        proven = [row for row in profile["capabilities"] if row["accepted_evidence"]]
+        if not proven:
+            continue
+        evidence_count += int(profile["canonical_record_count"] or 0)
+        capability_bits = []
+        for row in proven[:3]:
+            capability_bits.append(
+                f"{row['capability']}: {row['owner_acceptances']} owner acceptance(s), "
+                f"{row['review_acceptances']} review acceptance(s), recovery burden {row['recovery_burden']}, "
+                f"depth {row['depth']}"
+            )
+        economy = market.employee_market_profile(employee)
+        lines.append(
+            f"Employee #{employee.id} {employee.name} ({employee.position.name if employee.position else employee.slug}): "
+            + "; ".join(capability_bits)
+            + f". Internal market: {economy['earned']} EC earned, {economy['settled_contracts']} settled contract(s)."
+        )
+    if evidence_count == 0:
+        lines.append("No validated canonical accepted-Work learning is available yet; do not invent prior competence.")
+    else:
+        lines.append(
+            f"Validated canonical outcome evidence available: {evidence_count} record(s). "
+            "Prefer proven Employees among already-authorized capability matches, and increase scrutiny when recovery burden is high."
+        )
+    return lines, evidence_count
+
+
 def compose(ceo, founder_request=None, operation=None, project=None):
+    if operation and operation_kind(operation)!=REAL_WORK:
+        operation=None
     if operation and not project:
         project = operation.project
     sections = {}
@@ -235,6 +303,13 @@ def compose(ceo, founder_request=None, operation=None, project=None):
         "meetings": lambda: _meeting_memory(operation, project),
         "brain": lambda: _brain_memory(project),
         "workforce": lambda: _workforce_memory(operation, project),
+        "ceo_policy": lambda: (lambda result: ([result[0]], len(result[1].get("validated_learning_ids", []))))(
+            __import__("eason_one.services.ceo_learning", fromlist=["active_policy_context"]).active_policy_context(ceo)
+        ),
+        "ceo_history": lambda: (lambda result: ([result[0]] if result[0] else [], len(result[1].get("episode_keys", []))))(
+            __import__("eason_one.services.ceo_learning", fromlist=["similar_episode_context"]).similar_episode_context(founder_request)
+        ),
+        "company_learning": lambda: _company_learning_memory(project),
     }
     for name, producer in producers.items():
         lines, included = producer()

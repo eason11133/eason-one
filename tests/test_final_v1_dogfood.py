@@ -67,17 +67,17 @@ def test_compact_founder_schema_limits_are_frozen():
     schema=CEO_SCHEMA["schema"]
     operation=schema["properties"]["operation"]["anyOf"][0]["properties"]
     task=operation["tasks"]["items"]["properties"]
-    assert schema["properties"]["executive_response"]["maxLength"]==220
+    assert schema["properties"]["executive_response"]["maxLength"]==420
     assert operation["title"]["maxLength"]==80
     assert operation["objective"]["maxLength"]==180
     assert operation["tasks"]["maxItems"]==6
     assert task["title"]["maxLength"]==70
     assert task["objective"]["maxLength"]==140
-    assert task["acceptance_criteria"]["maxItems"]==2
-    assert task["acceptance_criteria"]["items"]["maxLength"]==120
+    assert task["acceptance_criteria"]["maxItems"]==8
+    assert task["acceptance_criteria"]["items"]["maxLength"]==280
     assert operation["meeting_policy"]["maxLength"]==80
-    assert operation["completion_criteria"]["maxItems"]==6
-    assert operation["completion_criteria"]["items"]["maxLength"]==120
+    assert operation["completion_criteria"]["maxItems"]==8
+    assert operation["completion_criteria"]["items"]["maxLength"]==280
 
 
 def _legacy_request(recommendation):

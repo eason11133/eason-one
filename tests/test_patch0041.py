@@ -31,6 +31,37 @@ def test_openai_provider_distinguishes_response_and_request_ids(monkeypatch):
     monkeypatch.setattr("openai.OpenAI",Client); monkeypatch.setenv("OPENAI_API_KEY","not-real")
     result=OpenAIProvider().complete(SimpleNamespace(model_name="x"),"s","u","c",10)
     assert result.response_id=="resp_123" and result.request_id=="req_456"
+def test_openai_web_search_uses_taiwan_locality_and_records_it(monkeypatch):
+    captured={}
+    response=SimpleNamespace(output_text="{}",usage=SimpleNamespace(input_tokens=2,output_tokens=1),id="resp_web",
+      _request_id="req_web",status="completed",output=[],incomplete_details=None)
+    class Responses:
+        def create(self,**kwargs):
+            captured.update(kwargs)
+            return response
+    class Client:
+        def __init__(self,**kwargs): self.responses=Responses()
+    monkeypatch.setattr("openai.OpenAI",Client); monkeypatch.setenv("OPENAI_API_KEY","not-real")
+    monkeypatch.delenv("EASON_ONE_WEB_SEARCH_COUNTRY",raising=False)
+    monkeypatch.delenv("EASON_ONE_WEB_SEARCH_TIMEZONE",raising=False)
+    result=OpenAIProvider().complete(SimpleNamespace(model_name="x"),"s","u","c",10,tool_mode="web_search")
+    assert captured["tools"]==[{"type":"web_search","user_location":{"type":"approximate","country":"TW","timezone":"Asia/Taipei"}}]
+    assert result.used_tools[0]["user_location"]=={"type":"approximate","country":"TW","timezone":"Asia/Taipei"}
+
+def test_openai_web_search_locality_is_environment_overridable(monkeypatch):
+    captured={}
+    response=SimpleNamespace(output_text="{}",usage=SimpleNamespace(input_tokens=1,output_tokens=1),id="resp_web2",
+      _request_id="req_web2",status="completed",output=[],incomplete_details=None)
+    class Responses:
+        def create(self,**kwargs): captured.update(kwargs); return response
+    class Client:
+        def __init__(self,**kwargs): self.responses=Responses()
+    monkeypatch.setattr("openai.OpenAI",Client); monkeypatch.setenv("OPENAI_API_KEY","not-real")
+    monkeypatch.setenv("EASON_ONE_WEB_SEARCH_COUNTRY","JP")
+    monkeypatch.setenv("EASON_ONE_WEB_SEARCH_TIMEZONE","Asia/Tokyo")
+    OpenAIProvider().complete(SimpleNamespace(model_name="x"),"s","u","c",10,tool_mode="web_search")
+    assert captured["tools"][0]["user_location"]=={"type":"approximate","country":"JP","timezone":"Asia/Tokyo"}
+
 def test_agent_run_persists_and_ui_displays_both_ids(ctx,client,monkeypatch):
     _,e=people()
     class P:

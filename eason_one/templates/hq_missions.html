@@ -1,0 +1,13 @@
+{% extends "hq_base.html" %}
+{% block title %}Mission Control · Eason One{% endblock %}
+{% block body_class %}v013-secondary-page{% endblock %}
+{% block pulse %}<span class="hq-pulse-item"><i class="pulse-dot"></i>ADVANCED EXECUTION</span>{% if snapshot.metrics.needs_founder %}<span class="hq-pulse-item warning">{{ snapshot.metrics.needs_founder }} GOVERNANCE GATE{{ '' if snapshot.metrics.needs_founder==1 else 'S' }}</span>{% endif %}{% endblock %}
+{% block content %}
+<div class="v013-page">
+<header class="v013-page-hero"><div><span class="hq-kicker">ADVANCED · MISSION CONTROL</span><h1>Execution machinery, when you need it.</h1><p>Projects are the Founder-facing work. Missions are bounded internal execution records for debugging, recovery, and audit.</p></div><a class="hq-button secondary" href="/headquarters/projects">BACK TO PROJECTS</a></header>
+<nav class="v013-segmented"><a class="{{ 'is-active' if snapshot.view=='real' }}" href="/headquarters/missions?view=real">PROJECT WORK · {{ snapshot.metrics.real_total }}</a><a class="{{ 'is-active' if snapshot.view=='validation' }}" href="/headquarters/missions?view=validation">SYSTEM VALIDATION · {{ snapshot.metrics.validation_total }}</a></nav>
+{% set order=[('RUNNING / READY',snapshot.groups.active),('FOUNDER GATES',snapshot.groups.needs_founder),('BLOCKED',snapshot.groups.blocked),('HISTORY',snapshot.groups.completed)] %}
+{% for label,rows in order %}{% if rows %}<section class="v013-secondary-section"><header><div><span class="hq-kicker">{{ label }}</span><h2>{{ rows|length }} record{{ '' if rows|length==1 else 's' }}</h2></div></header><div class="v013-mission-grid">{% for mission in rows %}<a href="/headquarters/missions/{{ mission.operation.id }}" class="v013-mission-row"><div><span>{{ mission.project.name if mission.project else ('SYSTEM VALIDATION' if mission.is_validation else 'INDEPENDENT') }}</span><h3>{{ mission.operation.title }}</h3><p>{{ mission.summary }}</p></div><aside><b>{{ mission.classification|replace('_',' ') }}</b><small>{% if mission.show_progress_percent %}{{ mission.progress }}%{% else %}{{ mission.done }}/{{ mission.total }} work closed{% endif %}</small></aside></a>{% endfor %}</div></section>{% endif %}{% endfor %}
+{% if not snapshot.missions %}<div class="v013-board-empty"><h2>No Mission records in this view.</h2><p>That is fine. Normal Project use should not require Mission Control.</p></div>{% endif %}
+</div>
+{% endblock %}

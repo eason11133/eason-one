@@ -1,0 +1,175 @@
+{% extends "hq_base.html" %}
+{% block title %}Meeting Room · Eason One{% endblock %}
+{% block body_class %}hq-meeting-room-page{% endblock %}
+{% block pulse %}
+  <a class="hq-pulse-item" href="/headquarters/meetings">← MEETING LOBBY</a>
+  <span class="hq-pulse-item state-{{ 'historical' if snapshot.row.historical else snapshot.meeting.status|lower }}"><i class="pulse-dot"></i>{{ 'HISTORICAL' if snapshot.row.historical else snapshot.meeting.status|replace('_',' ') }}</span>
+  <span class="hq-pulse-item">ROUND {{ snapshot.meeting.current_round }}/{{ snapshot.meeting.max_rounds }}</span>
+{% endblock %}
+{% block content %}
+{% set meeting=snapshot.meeting %}{% set row=snapshot.row %}{% set summary=meeting.current_summary_json or meeting.minutes_json or {} %}
+<section class="meeting-room-header-new">
+  <div><span class="hq-kicker">MEETING ROOM · #{{ meeting.id }}</span><h1>{{ meeting.title }}</h1><p>{{ meeting.purpose }}</p></div>
+  <div class="meeting-room-header-facts"><span><small>Status</small><b id="meeting-status">{{ 'HISTORICAL' if row.historical else meeting.status|replace('_',' ') }}</b></span><span><small>Participants</small><b>{{ row.participants|length }}</b></span><span><small>Provider calls</small><b id="calls">{{ snapshot.call_breakdown.total }}</b><em id="call-detail">{{ snapshot.call_breakdown.successful }} OK · {{ snapshot.call_breakdown.failed }} FAIL · {{ snapshot.call_breakdown.retries }} RETRY</em></span><span><small>Local cost</small><b id="cost">NT$ {{ row.cost|money }}</b></span></div>
+</section>
+
+{% if meeting.last_blocked_json and not row.historical %}<section class="hq-incident-banner"><span>!</span><div><b>Meeting execution is blocked</b><p>{{ meeting.last_blocked_json.reason or 'The runtime stopped before the next provider response.' }}</p></div>{% if meeting.last_blocked_json.run_id %}<a href="/headquarters/system/runs/{{ meeting.last_blocked_json.run_id }}">OPEN RUN</a>{% endif %}</section>{% endif %}
+{% if meeting.paid_failure_json and meeting.status=='PAUSED' and not row.historical %}
+<section class="hq-incident-banner danger paid-failure-detail">
+  <span>×</span>
+  <div>
+    <b>{{ meeting.paid_failure_json.reason or 'PAID STEP FAILED' }} · {{ meeting.paid_failure_json.employee or 'Employee' }}</b>
+    <p>{{ meeting.paid_failure_json.message or 'The provider call was billed and the Meeting is paused.' }}</p>
+    <div class="failure-facts">
+      <span>Provider <strong>{{ meeting.paid_failure_json.provider }} / {{ meeting.paid_failure_json.model }}</strong></span>
+      <span>Tokens <strong>{{ meeting.paid_failure_json.input_tokens }} in / {{ meeting.paid_failure_json.output_tokens }} out</strong></span>
+      <span>Charged <strong>NT$ {{ meeting.paid_failure_json.cost_twd }}</strong></span>
+      <span>Stop reason <strong>{{ meeting.paid_failure_json.provider_stop_reason or 'Not reported' }}</strong></span>
+      <span>Retry strategy <strong>{{ meeting.paid_failure_json.retry_strategy or 'REPLAY' }}</strong></span>
+      <span>Estimated retry <strong>NT$ {{ meeting.paid_failure_json.retry_estimate_twd }}</strong></span>
+    </div>
+    <small>{{ meeting.paid_failure_json.retry_changes or 'A bounded recovery retry is available within the approved Meeting envelope.' }}</small>
+  </div>
+  <div class="inline-actions">{% if snapshot.salvage %}<form method="post" action="/meetings/{{ meeting.id }}/accept-existing-response"><button class="hq-button secondary">ACCEPT EXISTING RESPONSE</button></form>{% endif %}<form method="post" action="/meetings/{{ meeting.id }}/retry-paid-step"><button class="hq-button">RETRY NOW</button></form><a class="hq-button secondary" href="/headquarters/system/runs/{{ meeting.paid_failure_json.run_id }}">OPEN FAILED RUN</a></div>
+</section>
+{% endif %}
+
+<section class="meeting-room-commandbar">
+  {% if row.historical %}
+  <div><span class="hq-kicker">HISTORICAL · NOT ACTIVE</span><b>AUDIT ONLY</b><small>This pre-v0.18 Meeting is preserved as evidence. Founder controls cannot restart or mutate it.</small></div>
+  {% else %}
+  <div><span class="hq-kicker">FOUNDER PRESENCE</span><b>{{ 'JOINED' if meeting.founder_joined_at else 'OBSERVING' }}</b><small>{{ 'Your messages can steer the room.' if meeting.founder_joined_at else 'You can watch without changing the discussion.' }}</small></div>
+  <div class="meeting-control-row">
+    {% if meeting.status=='PLANNED' %}<form method="post" action="/meetings/{{ meeting.id }}/start"><button class="hq-button">START MEETING</button></form>{% endif %}
+    {% if meeting.status=='RUNNING' %}<form method="post" action="/meetings/{{ meeting.id }}/pause"><button class="hq-button secondary">PAUSE</button></form>{% if request.args.get('autorun')!='1' %}<a class="hq-button" href="/headquarters/meetings/{{ meeting.id }}?autorun=1">ATTACH LIVE RUNNER</a>{% endif %}{% endif %}
+    {% if meeting.status in ['PAUSED','WAITING_FOR_FOUNDER'] and not meeting.paid_failure_json %}<form method="post" action="/meetings/{{ meeting.id }}/resume"><button class="hq-button">RESUME</button></form>{% endif %}
+    {% if meeting.status not in ['ENDED','TERMINATED_BY_FOUNDER'] and not meeting.founder_joined_at %}<form method="post" action="/meetings/{{ meeting.id }}/join"><button class="hq-button secondary">JOIN AS FOUNDER</button></form>{% endif %}
+    {% if meeting.status not in ['ENDED','TERMINATED_BY_FOUNDER'] %}<form method="post" action="/meetings/{{ meeting.id }}/stop"><input type="hidden" name="reason" value="Stopped by Founder"><button class="hq-button danger">STOP MEETING</button></form>{% endif %}
+    {% if meeting.status not in ['PLANNED','ENDED','TERMINATED_BY_FOUNDER'] %}<form method="post" action="/meetings/{{ meeting.id }}/end"><button class="hq-button secondary">SYNTHESIZE RESULT</button></form>{% endif %}
+  </div>
+  {% endif %}
+</section>
+
+<section class="meeting-execution-contract">
+  <div><span class="hq-kicker">EXECUTION CONTRACT</span><b>{{ meeting.execution_profile }} MODE</b><small>Hard ceilings are checked before every provider call.</small></div>
+  <div><span>Rounds</span><b>{{ meeting.max_rounds }}</b></div>
+  <div><span>Speakers / round</span><b>{{ meeting.max_speakers_per_round }}</b></div>
+  <div><span>Contribution cap</span><b>{{ meeting.contribution_output_cap }}</b></div>
+  <div><span>Meeting tokens</span><b>{{ meeting.token_limit }}</b></div>
+  <div><span>Meeting budget</span><b>NT$ {{ meeting.real_cost_limit_twd|money }}</b></div>
+  <div><span>Retry policy</span><b>1 explicit / failed step</b></div>
+</section>
+
+<div class="hq-meeting-layout">
+  <section class="hq-conversation-room">
+    <header><div><span class="hq-kicker">{{ 'PREPARED ROOM' if meeting.status=='PLANNED' else 'LIVE ROOM' }}</span><h2 id="latest-event-title">{{ snapshot.primary_status }}</h2></div></header>
+
+    {% if meeting.status=='PLANNED' %}
+      {# Planned preview deliberately keeps the original all-participant spatial scene. #}
+      <div class="meeting-space participants-{{ row.participants|length }}">
+        <div class="hq-meeting-table"><div><span>CURRENT ISSUE</span><b>{{ summary.get('current_topic') or meeting.agenda or meeting.purpose }}</b><small>Start the Meeting to begin discussion.</small></div></div>
+        {% for participant in row.participants %}
+          <article class="hq-participant-seat preview-person seat-{{ loop.index }}" id="seat-{{ participant.employee.id }}">
+            <div class="seat-person"><span class="employee-avatar large"><b>{{ participant.initials }}</b><i></i></span><div><b>{{ participant.employee.name }}</b><small>{{ participant.employee.position.name }}</small></div></div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="live-room-topic"><span>CURRENT ISSUE</span><b>{{ summary.get('current_topic') or meeting.agenda or meeting.purpose }}</b><small>The latest speaker is promoted to the first visible tile.</small></div>
+      <div class="live-participant-grid tiles-{{ [snapshot.live_tiles|length,4]|min }}" data-live-participant-grid>
+        {% for participant in snapshot.live_tiles %}
+          {% set item=participant.latest %}
+          {% set body=item.parsed.position if item and item.parsed and item.parsed.position else item.parsed.core_point if item and item.parsed and item.parsed.core_point else item.message.content if item else None %}
+          <article class="live-participant-tile {{ 'is-speaking' if snapshot.active_speaker_id==participant.employee.id else '' }} {{ 'is-background' if loop.index>4 else '' }}" id="tile-{{ participant.employee.id }}" data-employee-id="{{ participant.employee.id }}" {% if loop.index>4 %}hidden{% endif %}>
+            <header><span class="employee-avatar"><b>{{ participant.initials }}</b><i></i></span><div><b>{{ participant.employee.name }}</b><small>{{ participant.employee.position.name }}</small></div><em>{{ 'SPEAKING' if snapshot.active_speaker_id==participant.employee.id else 'IN ROOM' }}</em></header>
+            <div class="live-participant-dialogue" id="speech-{{ participant.employee.id }}"><p class="{{ 'quiet' if not body else '' }}">{{ body or 'No validated contribution yet.' }}</p></div>
+          </article>
+        {% endfor %}
+      </div>
+      {% if snapshot.live_tiles|length>4 %}
+        <div class="background-participant-rail" data-background-rail><span>{{ snapshot.live_tiles|length-4 }} PARTICIPANTS IN BACKGROUND</span><div>{% for participant in snapshot.live_tiles[4:] %}<i data-background-person="{{ participant.employee.id }}">{{ participant.initials }} · {{ participant.employee.name }}</i>{% endfor %}</div><small>When one of them speaks, that participant moves into the first visible tile.</small></div>
+      {% endif %}
+    {% endif %}
+  </section>
+
+  <aside class="hq-meeting-brief">
+    <header><span class="hq-kicker">{{ 'ROOM BRIEF' if meeting.status=='PLANNED' else 'LIVE BRIEF' }}</span><h2>What matters now</h2></header>
+    {% set prepared_topic=summary.get('current_topic') or meeting.agenda or meeting.purpose %}
+    {% for key,label in [('current_topic','Current topic'),('agreement','Agreement'),('key_disagreement','Key disagreement'),('evidence','Evidence'),('open_question','Open question'),('next_step','Next step')] %}
+      {% set fallback = prepared_topic if key=='current_topic' else ('Start the Meeting.' if key=='next_step' and meeting.status=='PLANNED' else 'Not discussed yet') %}
+      <div class="meeting-brief-row"><span>{{ label }}</span><p id="brief-{{ key|replace('_','-') }}">{{ summary.get(key) or fallback }}</p></div>
+    {% endfor %}
+    <div class="meeting-budget-row"><span>Token use <b id="tokens">{{ row.tokens }}</b></span><span>Limit <b>{{ meeting.token_limit }}</b></span></div>
+  </aside>
+</div>
+
+{% if not row.historical and meeting.founder_joined_at and meeting.status not in ['ENDED','TERMINATED_BY_FOUNDER'] %}<form class="founder-intervention-new" method="post" action="/meetings/{{ meeting.id }}/intervene"><textarea name="content" required placeholder="Add a Founder question, correction, or constraint…"></textarea><button class="hq-button">SEND TO ROOM</button></form>{% endif %}
+
+{% if snapshot.result %}<section class="hq-meeting-result"><header><span class="hq-kicker">MEETING RESULT</span><h2>{{ snapshot.result.position or 'The Meeting produced a recorded conclusion.' }}</h2></header>{% if snapshot.result.actions %}<div><span>Actions</span><ul>{% for item in snapshot.result.actions %}<li>{{ item }}</li>{% endfor %}</ul></div>{% endif %}{% if snapshot.result.controls %}<div><span>Controls</span><ul>{% for item in snapshot.result.controls %}<li>{{ item }}</li>{% endfor %}</ul></div>{% endif %}{% if meeting.operation_id %}<a class="hq-button" href="/headquarters/missions/{{ meeting.operation_id }}">RETURN TO MISSION</a>{% endif %}</section>{% endif %}
+
+<section class="hq-transcript-section"><header class="section-heading"><div><span class="hq-kicker">TRANSCRIPT & CONTRIBUTIONS</span><h2>Source-linked discussion history</h2></div><b>{{ snapshot.messages|length }}</b></header><div class="hq-transcript-list">{% for item in snapshot.display %}{% set body=item.parsed.position if item.parsed and item.parsed.position else item.parsed.core_point if item.parsed and item.parsed.core_point else item.message.content %}<article><header><span>{{ item.message.employee.name if item.message.employee else 'Founder or system' }}</span><small>Round {{ item.message.round_number }} · {{ item.message.message_type|replace('_',' ') }}</small></header><p>{{ body }}</p>{% if item.message.speaker_type=='EMPLOYEE' %}<form class="meeting-feedback-row" method="post" action="/meeting-messages/{{ item.message.id }}/feedback"><button name="signal" value="VALUABLE">VALUABLE</button><button name="signal" value="KEY_INSIGHT">KEY INSIGHT</button><button name="signal" value="CRITICAL_CATCH">CRITICAL CATCH</button><button name="signal" value="LOW_VALUE">LOW VALUE</button><input name="note" placeholder="Optional Founder note"></form>{% endif %}</article>{% else %}<div class="empty-inline">No discussion has been recorded.</div>{% endfor %}</div></section>
+<details class="hq-raw-audit"><summary>Technical audit</summary>{% for run in snapshot.runs %}<a href="/headquarters/system/runs/{{ run.id }}"><b>Run #{{ run.id }}</b><span>{{ run.status }} · {{ run.provider_key_snapshot }} / {{ run.model_name_snapshot }}</span></a>{% else %}<p>No Agent runs are attached.</p>{% endfor %}</details>
+{% endblock %}
+{% block scripts %}
+{% if not snapshot.row.historical and request.args.get('autorun')=='1' and snapshot.meeting.status=='RUNNING' %}
+<script>
+(async function runMeeting(){
+  function promoteSpeaker(employeeId, body){
+    const grid=document.querySelector('[data-live-participant-grid]');
+    const tile=document.getElementById('tile-'+employeeId);
+    if(!grid||!tile)return;
+    grid.querySelectorAll('.live-participant-tile').forEach(node=>{
+      node.classList.remove('is-speaking');
+      const state=node.querySelector('header em');
+      if(state)state.textContent='IN ROOM';
+    });
+    tile.hidden=false;
+    tile.classList.remove('is-background');
+    tile.classList.add('is-speaking');
+    const state=tile.querySelector('header em');
+    if(state)state.textContent='SPEAKING';
+    grid.prepend(tile);
+    const tiles=[...grid.querySelectorAll('.live-participant-tile')];
+    tiles.forEach((node,index)=>{
+      const background=index>=4;
+      node.hidden=background;
+      node.classList.toggle('is-background',background);
+    });
+    const speech=document.getElementById('speech-'+employeeId);
+    if(speech){speech.innerHTML='<p></p>';speech.querySelector('p').textContent=body;}
+    const rail=document.querySelector('[data-background-rail]');
+    if(rail){
+      const hidden=tiles.filter(node=>node.hidden);
+      const label=rail.querySelector('span');
+      if(label)label.textContent=hidden.length+' PARTICIPANTS IN BACKGROUND';
+      rail.hidden=hidden.length===0;
+    }
+  }
+  while(true){
+    const response=await fetch('/meetings/{{ snapshot.meeting.id }}/next-step',{method:'POST',headers:{'X-Eason-Auto':'1','Idempotency-Key':crypto.randomUUID()}});
+    const state=await response.json();
+    const status=document.getElementById('meeting-status');if(status)status.textContent=state.status||'UNKNOWN';
+    const cost=document.getElementById('cost');if(cost)cost.textContent='NT$ '+(state.cost_twd||0);
+    const tokens=document.getElementById('tokens');if(tokens)tokens.textContent=state.tokens||0;
+    const calls=document.getElementById('calls');if(calls)calls.textContent=state.calls||0;
+    const callDetail=document.getElementById('call-detail');if(callDetail&&state.call_breakdown){callDetail.textContent=(state.call_breakdown.successful||0)+' OK · '+(state.call_breakdown.failed||0)+' FAIL · '+(state.call_breakdown.retries||0)+' RETRY';}
+    if(state.latest_event){
+      const contribution=state.latest_event.contribution||{};
+      const body=contribution.position||contribution.core_point||contribution.content||contribution.reason||'Contribution recorded.';
+      const title=document.getElementById('latest-event-title');
+      if(title)title.textContent=(state.latest_event.speaker||'Employee')+' · '+(state.latest_event.type||'CONTRIBUTION');
+      if(state.latest_event.employee_id)promoteSpeaker(state.latest_event.employee_id,body);
+    }
+    if(state.live_brief){
+      for(const [key,value] of Object.entries(state.live_brief)){
+        const node=document.getElementById('brief-'+key.replaceAll('_','-'));
+        if(node&&value!==null)node.textContent=value;
+      }
+    }
+    if(!response.ok||!state.continue_allowed){location.href='/headquarters/meetings/{{ snapshot.meeting.id }}';return;}
+    await new Promise(resolve=>setTimeout(resolve,500));
+  }
+})();
+</script>
+{% endif %}
+{% endblock %}

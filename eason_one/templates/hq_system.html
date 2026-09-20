@@ -1,0 +1,10 @@
+{% extends "hq_base.html" %}
+{% block title %}System · Eason One{% endblock %}
+{% block body_class %}v013-secondary-page{% endblock %}
+{% block pulse %}<span class="hq-pulse-item"><i class="pulse-dot"></i>{{ snapshot.metrics.healthy }}/{{ snapshot.metrics.models }} MODELS READY</span>{% if snapshot.metrics.failures %}<span class="hq-pulse-item danger">{{ snapshot.metrics.failures }} BLOCKING</span>{% endif %}{% endblock %}
+{% block content %}
+<div class="v013-page"><header class="v013-page-hero"><div><span class="hq-kicker">SYSTEM</span><h1>The engine room stays out of your way.</h1><p>Provider readiness, Agent Runs, recovery, and research evidence live here. They no longer define the Founder experience.</p></div></header>
+<section class="v013-system-grid"><a href="/headquarters/system/models"><span>MODELS</span><b>{{ snapshot.metrics.models }}</b><p>Provider config, assignment, pricing, limits.</p></a><a href="/headquarters/system/runs"><span>RUNS</span><b>{{ snapshot.metrics.runs }}</b><p>Raw execution and provider audit.</p></a><a href="/headquarters/attention"><span>RECOVERY</span><b>{{ snapshot.metrics.failures }}</b><p>Only blocking incidents that need action.</p></a><a href="/headquarters/research"><span>RESEARCH LEDGER</span><b>{{ snapshot.metrics.reliability }}</b><p>Failure-driven development and eval evidence.</p></a></section>
+<section class="v013-secondary-section"><header><div><span class="hq-kicker">PROVIDER READINESS</span><h2>Can Employees actually execute?</h2></div></header><div class="v013-provider-grid">{% for row in snapshot.providers %}<article class="{{ 'is-ready' if row.healthy else 'is-blocked' }}"><header><span>{{ row.model.provider_key|upper }}</span><b>{{ 'READY' if row.healthy else 'BLOCKED' }}</b></header><h3>{{ row.model.label }}</h3><p>{{ row.summary }}</p><small>{{ row.assigned }} Employees · {{ row.runs }} Runs{% if row.research_capable %} · WEB RESEARCH {{ 'READY' if row.research_ready else 'BLOCKED' }}{% endif %}</small></article>{% else %}<div class="v013-muted-empty">No provider configuration.</div>{% endfor %}</div></section>
+</div>
+{% endblock %}

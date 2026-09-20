@@ -1,0 +1,60 @@
+{% extends "hq_base.html" %}
+{% block title %}Projects · Eason One{% endblock %}
+{% block body_class %}v013-projects-page presentation-projects-page{% endblock %}
+{% block pulse %}
+  <span class="hq-pulse-item"><i class="pulse-dot"></i>{{ snapshot.current|length }} CURRENT PROJECT{{ '' if snapshot.current|length==1 else 'S' }}</span>
+  {% if snapshot.recently_completed %}<span class="hq-pulse-item quiet">{{ snapshot.recently_completed|length }} RECENTLY CLOSED</span>{% endif %}
+  {% if snapshot.archive %}<span class="hq-pulse-item quiet">{{ snapshot.archive|length }} IN HISTORY</span>{% endif %}
+{% endblock %}
+{% block content %}
+<div class="v013-page presentation-project-registry">
+  <header class="v013-page-hero presentation-project-hero">
+    <div><span class="hq-kicker">PROJECTS</span><h1>What the company owns now.</h1><p>Current Projects stay in front. Completed outcomes remain easy to revisit. Development and legacy records are preserved underneath as audit history instead of filling the Founder workspace.</p></div>
+    <a class="hq-button" href="/headquarters#ceo-line">START WITH CEO</a>
+  </header>
+
+  <section class="presentation-project-section is-current">
+    <div class="presentation-section-head"><div><span class="hq-kicker">CURRENT</span><h2>Projects that can still move.</h2></div><b>{{ snapshot.current|length }}</b></div>
+    <div class="v013-projects-board">
+      {% for row in snapshot.current %}
+      <a class="v013-project-tile state-{{ row.state|lower }}" href="{{ row.href }}">
+        <div class="v013-project-tile-top"><span>{{ row.state|replace('_',' ') }}</span><time>{{ row.updated_label }}</time></div>
+        <h2>{{ row.project.name }}</h2>
+        <p>{{ row.current_direction }}</p>
+        <div class="v013-project-tile-live"><i></i><b>{{ row.state_detail }}</b></div>
+        <div class="v013-project-tile-grid"><div><span>{{ 'Progress' if row.show_progress_percent else 'Work closed' }}</span><b>{% if row.show_progress_percent %}{{ row.progress }}%{% else %}{{ row.done }}/{{ row.total }}{% endif %}</b></div><div><span>Results</span><b>{{ 'Yes' if row.latest_result else '—' }}</b></div><div><span>Local cost</span><b>NT$ {{ row.cost|money }}</b></div></div>
+        <footer><span>NEXT</span><b>{{ row.next_step }}</b></footer>
+      </a>
+      {% else %}
+      <div class="v013-board-empty"><span class="hq-kicker">NO CURRENT PROJECTS</span><h2>The company is ready for a new outcome.</h2><p>Historical engineering records are still preserved below; they no longer pretend to be live company work.</p><a class="hq-button" href="/headquarters#ceo-line">TALK TO CEO</a></div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% if snapshot.recently_completed %}
+  <section class="presentation-project-section is-recent">
+    <div class="presentation-section-head"><div><span class="hq-kicker">RECENTLY COMPLETED</span><h2>Outcomes worth revisiting.</h2></div><b>{{ snapshot.recently_completed|length }}</b></div>
+    <div class="presentation-recent-projects">
+      {% for row in snapshot.recently_completed %}
+      <a href="{{ row.href }}">
+        <div><span>{{ row.project.status }}</span><h3>{{ row.project.name }}</h3><p>{{ row.latest_result.title if row.latest_result else row.current_direction }}</p></div>
+        <aside><b>{{ row.updated_label }}</b><em>{{ 'OPEN RESULT →' if row.latest_result else 'OPEN RECORD →' }}</em></aside>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if snapshot.archive %}
+  <details class="presentation-project-archive">
+    <summary><span><b>DEVELOPMENT HISTORY</b><small>{{ snapshot.archive|length }} preserved Project record{{ '' if snapshot.archive|length==1 else 's' }}</small></span><em>SHOW HISTORY</em></summary>
+    <p>Legacy and older closed Projects are retained for traceability. They do not compete with the current Founder workspace and cannot silently become live work.</p>
+    <div class="v013-closed-list">
+      {% for row in snapshot.archive %}
+      <a href="{{ row.href }}"><div><b>{{ row.project.name }}</b><span>{{ 'HISTORICAL · CUTOVER ARCHIVE' if row.is_dormant_history else row.project.status }} · {{ row.updated_label }}</span></div><em>{{ row.latest_result.title if row.latest_result else 'Open audit record' }} →</em></a>
+      {% endfor %}
+    </div>
+  </details>
+  {% endif %}
+</div>
+{% endblock %}

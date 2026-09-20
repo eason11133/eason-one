@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 TASK_FIELDS = {
     "type": "object", "additionalProperties": False,
     "required": ["title", "objective", "assignee_slug", "reviewer_slug", "required_output", "acceptance_criteria"],
@@ -7,16 +9,54 @@ TASK_FIELDS = {
         "required_output": {"type": "string"}, "acceptance_criteria": {"type": "string"},
     },
 }
+
+MEETING_CONFIG_SCHEMA = {
+    "type": "object", "additionalProperties": False,
+    "required": [
+        "trigger", "participant_employee_ids", "max_rounds",
+        "max_speakers_per_round", "contribution_output_cap",
+        "token_limit", "budget_twd", "retry_limit",
+    ],
+    "properties": {
+        "trigger": {"type": "string", "enum": [
+            "NEVER", "ON_MATERIAL_CONFLICT", "BEFORE_FINAL_REPORT",
+        ]},
+        "participant_employee_ids": {
+            "type": "array", "minItems": 0, "maxItems": 4,
+            "items": {"type": "integer"},
+        },
+        "max_rounds": {"type": "integer", "minimum": 1, "maximum": 3},
+        "max_speakers_per_round": {
+            "type": "integer", "minimum": 1, "maximum": 4,
+        },
+        "contribution_output_cap": {
+            "type": "integer", "minimum": 192, "maximum": 1024,
+        },
+        "token_limit": {
+            "type": "integer", "minimum": 1200, "maximum": 12000,
+        },
+        "budget_twd": {"type": "number", "minimum": 0},
+        "retry_limit": {"type": "integer", "minimum": 0, "maximum": 1},
+    },
+}
+
 CEO_SCHEMA = {"name": "ceo_founder_request", "schema": {
     "type": "object", "additionalProperties": False,
     "required": ["mode", "executive_response", "project", "project_id", "tasks", "operation"],
     "properties": {
         "mode": {"type": "string", "enum": ["NEW_PROJECT", "PROJECT_ACTION", "STATUS_QUERY", "ADVISORY", "OPERATION_PLAN", "OPERATION_FOLLOW_UP"]},
-        "executive_response": {"type": "string", "maxLength": 220},
+        "executive_response": {"type": "string", "minLength": 1, "maxLength": 420},
         "project": {"anyOf": [
-            {"type": "object", "additionalProperties": False, "required": ["name", "objective", "priority"],
-             "properties": {"name": {"type": "string"}, "objective": {"type": "string"},
-                            "priority": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]}}},
+            {"type": "object", "additionalProperties": False,
+             "required": ["name", "objective", "priority", "success_criteria", "constraints", "deadline"],
+             "properties": {
+                 "name": {"type": "string", "maxLength": 100},
+                 "objective": {"type": "string", "maxLength": 300},
+                 "priority": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+                 "success_criteria": {"type": "array", "maxItems": 8, "items": {"type": "string", "maxLength": 280}},
+                 "constraints": {"type": "array", "maxItems": 8, "items": {"type": "string", "maxLength": 280}},
+                 "deadline": {"type": ["string", "null"], "maxLength": 40}
+             }},
             {"type": "null"},
         ]},
         "project_id": {"type": ["integer", "null"]},
@@ -24,7 +64,7 @@ CEO_SCHEMA = {"name": "ceo_founder_request", "schema": {
         "operation": {"anyOf": [
             {"type": "object", "additionalProperties": False,
              "required": ["title", "objective", "project_id", "budget_twd", "tasks",
-                          "meeting_policy", "completion_criteria"],
+                          "meeting_policy", "meeting_config", "completion_criteria"],
              "properties": {
                  "title": {"type": "string", "maxLength": 80},
                  "objective": {"type": "string", "maxLength": 180},
@@ -33,35 +73,121 @@ CEO_SCHEMA = {"name": "ceo_founder_request", "schema": {
                  "tasks": {"type": "array", "minItems": 1, "maxItems": 6, "items": {
                      "type": "object", "additionalProperties": False,
                      "required": ["title", "objective", "assignee_employee_id",
-                                  "reviewer_employee_id", "acceptance_criteria"],
+                                  "reviewer_employee_id", "acceptance_criteria", "required_capabilities",
+                                  "write_scope"],
                      "properties": {
                          "title": {"type": "string", "maxLength": 70},
                          "objective": {"type": "string", "maxLength": 140},
                          "assignee_employee_id": {"type": "integer"},
-                         "reviewer_employee_id": {"type": "integer"},
+                         "reviewer_employee_id": {"type": ["integer", "null"]},
+                         "required_capabilities": {
+                             "type": "array", "minItems": 1, "maxItems": 1,
+                             "items": {
+                                 "type": "string",
+                                 "enum": [
+                                     "RESEARCH", "SOFTWARE_ENGINEERING", "CRITICAL_REVIEW",
+                                     "PRODUCT_STRATEGY", "PRODUCT_DESIGN", "MARKETING",
+                                     "FINANCE", "LEGAL_COMPLIANCE", "OPERATIONS", "CONTENT"
+                                 ],
+                             },
+                         },
                          "acceptance_criteria": {"type": "array", "minItems": 1,
-                                                "maxItems": 2,
-                                                "items": {"type": "string",
-                                                          "maxLength": 120}},
+                                                "maxItems": 8,
+                                                "items": {"type": "string", "maxLength": 280}},
+                         "write_scope": {"anyOf": [
+                             {"type": "null"},
+                             {"type": "object", "additionalProperties": False,
+                              "required": ["version", "paths"],
+                              "properties": {
+                                  "version": {"type": "string", "enum": ["CODEX_WRITE_SCOPE_V1"]},
+                                  "paths": {"type": "array", "minItems": 1, "maxItems": 20,
+                                            "items": {"type": "string", "maxLength": 240}},
+                              }},
+                         ]},
                      },
                  }},
                  "meeting_policy": {"type": "string", "maxLength": 80},
+                 "meeting_config": MEETING_CONFIG_SCHEMA,
                  "completion_criteria": {"type": "array", "minItems": 1,
-                                         "maxItems": 6,
+                                         "maxItems": 8,
                                          "items": {"type": "string",
-                                                   "maxLength": 120}},
+                                                   "maxLength": 280}},
              }},
             {"type": "null"},
         ]},
     },
 }}
+
+
+# Work requests use a route-specific schema. Structured-output validation must
+# make it impossible for a delegated outcome to collapse into ADVISORY with a
+# null Operation, as happened in Founder Run #80. Direct questions continue to
+# use CEO_SCHEMA; execution routes use this stricter contract.
+CEO_EXECUTION_SCHEMA = deepcopy(CEO_SCHEMA)
+CEO_EXECUTION_SCHEMA["name"] = "ceo_founder_execution_request"
+CEO_EXECUTION_SCHEMA["schema"]["properties"]["mode"]["enum"] = ["OPERATION_PLAN"]
+CEO_EXECUTION_SCHEMA["schema"]["properties"]["operation"] = deepcopy(
+    CEO_SCHEMA["schema"]["properties"]["operation"]["anyOf"][0]
+)
+
+MULTI_AGENT_ORCHESTRATION_SCHEMA = {"name": "multi_agent_orchestration", "schema": {
+    "type": "object", "additionalProperties": False,
+    "required": ["strategy", "rationale", "max_parallelism", "tasks"],
+    "properties": {
+        "strategy": {"type": "string", "enum": ["SERIAL", "PARALLEL_DAG"]},
+        "rationale": {"type": "string", "minLength": 1, "maxLength": 320},
+        "max_parallelism": {"type": "integer", "minimum": 1, "maximum": 4},
+        "tasks": {
+            "type": "array", "minItems": 1, "maxItems": 6,
+            "items": {
+                "type": "object", "additionalProperties": False,
+                "required": ["task_id", "depends_on_task_ids", "role", "reason"],
+                "properties": {
+                    "task_id": {"type": "integer"},
+                    "depends_on_task_ids": {
+                        "type": "array", "maxItems": 5,
+                        "items": {"type": "integer"},
+                    },
+                    "role": {
+                        "type": "string",
+                        "enum": ["WORKER", "SYNTHESIS", "VERIFIER", "RESOLVER"],
+                    },
+                    "reason": {"type": "string", "minLength": 1, "maxLength": 220},
+                },
+            },
+        },
+    },
+}}
+
+
+CEO_STATUS_REPORT_SCHEMA = {"name": "ceo_status_report", "schema": {
+    "type": "object", "additionalProperties": False,
+    "required": ["executive_summary"],
+    "properties": {
+        "executive_summary": {"type": "string", "minLength": 1, "maxLength": 320},
+    },
+}}
+
 REVIEW_SCHEMA = {"name": "task_review", "schema": {
     "type": "object", "additionalProperties": False,
-    "required": ["decision", "summary", "issues", "required_changes"],
+    "required": ["decision", "summary", "issues", "required_changes", "criterion_results"],
     "properties": {
         "decision": {"type": "string", "enum": ["ACCEPT", "REVISE", "BLOCK"]},
-        "summary": {"type": "string"}, "issues": {"type": "array", "items": {"type": "string"}},
-        "required_changes": {"type": "array", "items": {"type": "string"}},
+        "summary": {"type": "string", "maxLength": 700},
+        "issues": {"type": "array", "maxItems": 8, "items": {"type": "string", "maxLength": 500}},
+        "required_changes": {"type": "array", "maxItems": 8, "items": {"type": "string", "maxLength": 500}},
+        "criterion_results": {
+            "type": "array", "maxItems": 12,
+            "items": {
+                "type": "object", "additionalProperties": False,
+                "required": ["criterion_id", "status", "evidence"],
+                "properties": {
+                    "criterion_id": {"type": "string"},
+                    "status": {"type": "string", "enum": ["PASSED", "FAILED", "UNPROVEN"]},
+                    "evidence": {"type": "string", "maxLength": 900},
+                },
+            },
+        },
     },
 }}
 SYNTHESIS_SCHEMA = {"name": "ceo_project_synthesis", "schema": {
@@ -124,7 +250,7 @@ CEO_DECISION_SCHEMA = {"name": "ceo_operation_decision", "schema": {
                  "title": {"type": ["string", "null"]},
                  "objective": {"type": ["string", "null"]},
                  "assignee_employee_id": {"type": "integer"},
-                 "reviewer_employee_id": {"type": "integer"},
+                 "reviewer_employee_id": {"type": ["integer", "null"]},
                  "acceptance_criteria": {
                      "type": "array", "items": {"type": "string"},
                  },
@@ -204,6 +330,15 @@ GOAL_VERIFICATION_SCHEMA = {"name": "operation_goal_verification", "schema": {
     },
 }}
 
+CEO_CLOSURE_SCHEMA = {"name": "ceo_project_closure", "schema": {
+    "type": "object", "additionalProperties": False,
+    "required": ["verification", "report"],
+    "properties": {
+        "verification": GOAL_VERIFICATION_SCHEMA["schema"],
+        "report": SYNTHESIS_SCHEMA["schema"],
+    },
+}}
+
 KNOWLEDGE_CANDIDATE = {
     "type": "object", "additionalProperties": False,
     "required": ["kind", "title", "content", "source_ref", "rationale", "basis_knowledge_ids"],
@@ -280,5 +415,29 @@ MEETING_ROUTER_SCHEMA = {"name":"meeting_chair_router","schema":{
         "reason":{"type":"string","maxLength":240},
         "founder_input_required":{"type":"boolean"},
         "founder_question":{"type":["string","null"],"maxLength":240},
+    },
+}}
+
+PROJECT_OUTCOME_REVIEW_SCHEMA = {"name": "project_outcome_review_v2", "schema": {
+    "type": "object", "additionalProperties": False,
+    "required": ["criteria", "summary"],
+    "properties": {
+        "criteria": {
+            "type": "array", "minItems": 1, "maxItems": 8,
+            "items": {
+                "type": "object", "additionalProperties": False,
+                "required": ["criterion_id", "status", "evidence", "work_ids"],
+                "properties": {
+                    # Criterion identity is assigned deterministically from the
+                    # frozen governing Project Contract.  The model must not
+                    # repeat/paraphrase authority text in order to address it.
+                    "criterion_id": {"type": "string", "pattern": "^P[1-8]$"},
+                    "status": {"type": "string", "enum": ["SATISFIED", "NOT_SATISFIED", "INSUFFICIENT_EVIDENCE"]},
+                    "evidence": {"type": "string", "maxLength": 900},
+                    "work_ids": {"type": "array", "maxItems": 16, "items": {"type": "integer"}},
+                },
+            },
+        },
+        "summary": {"type": "string", "minLength": 1, "maxLength": 700},
     },
 }}

@@ -19,22 +19,22 @@ def test_founder_objective_produces_operation_without_preapproval_work(ctx):
     assert Task.query.count() == before
 
 
-def test_founder_approval_route_enters_browser_runner(client, ctx):
+def test_founder_approval_route_lands_on_governed_project_company_surface(client, ctx):
     ceo = Employee.query.filter_by(slug="ceo").one()
     _, operation = founder_request(
         ceo, "Prepare a bounded qualified prospect validation"
     )
     response = client.post(f"/operations/{operation.id}/approve")
     assert response.status_code == 302
-    assert response.headers["Location"].endswith(
-        f"/operations/{operation.id}?autorun=1"
-    )
     db.session.refresh(operation)
+    assert operation.project_id is not None
+    assert response.headers["Location"].endswith(
+        f"/headquarters/projects/{operation.project_id}?live=1"
+    )
     assert operation.status == "RUNNING"
-    page = client.get(f"/operations/{operation.id}").get_data(as_text=True)
-    assert "CEO-managed operation" in page
-    assert "CEO owner" in page
-    assert "FOUNDER OVERRIDE / ADVANCED" in page
+    page = client.get(f"/headquarters/projects/{operation.project_id}").get_data(as_text=True)
+    assert "COMPANY NOW" in page
+    assert "Advanced · internal execution records" in page
 
 
 def test_operation_http_step_is_idempotent_and_one_call(client, ctx):

@@ -1,0 +1,60 @@
+{% extends "hq_base.html" %}
+{% block title %}HR & Talent · Eason One{% endblock %}
+{% block body_class %}hq-talent-page{% endblock %}
+{% block pulse %}
+  <a class="hq-pulse-item" href="/headquarters/people">← PEOPLE</a>
+  <span class="hq-pulse-item"><i class="pulse-dot"></i>{{ snapshot.metrics.talent }} ROLE TEMPLATES</span>
+  <span class="hq-pulse-item">{{ snapshot.metrics.open_requests }} OPEN REQUESTS</span>
+{% endblock %}
+{% block content %}
+<section class="hq-room-heading">
+  <div><span class="hq-kicker">HR OFFICE · TALENT CATALOG</span><h1>Roles are a verified talent pool, not automatic headcount.</h1><p>HR evaluates capability gaps, compares existing staff, proposes placement and cost, and creates a persistent Employee only after governed hiring approval.</p></div>
+  <a class="hq-button secondary" href="/headquarters/people">ACTIVE WORKFORCE</a>
+</section>
+
+<section class="talent-source-status {{ 'is-ready' if snapshot.source_ready else 'is-missing' }}">
+  <div><span class="hq-kicker">FOUNDER ROLE SOURCE</span><h2>{{ 'Verified source detected' if snapshot.source_ready else 'The 147-role source is not in this repository' }}</h2><p>{% if snapshot.source_ready %}{{ snapshot.source }}{% else %}Place the original JSON or CSV in the project root or <code>data/</code> using a supported name such as <code>talent-library.json</code> or <code>ai-employees.csv</code>. Eason One will not invent missing roles.{% endif %}</p></div>
+  <form method="post" action="/headquarters/people/talent/import"><button class="hq-button" {{ 'disabled' if not snapshot.source_ready }}>IMPORT VERIFIED SOURCE</button></form>
+</section>
+
+<section class="talent-overview-grid">
+  <article><span>Active Employees</span><b>{{ snapshot.metrics.active_employees }}</b><small>Persistent identities currently employed</small></article>
+  <article><span>Talent Templates</span><b>{{ snapshot.metrics.talent }}</b><small>Inert candidates available to HR</small></article>
+  <article><span>Open Staffing Requests</span><b>{{ snapshot.metrics.open_requests }}</b><small>Needs under HR or Founder review</small></article>
+  <article><span>HR Director</span><b>{{ snapshot.hr.name if snapshot.hr else 'Unavailable' }}</b><small>{{ 'Model assigned' if snapshot.hr and snapshot.hr.current_model else 'No active AI Core assigned' }}</small></article>
+</section>
+
+<section class="talent-workbench">
+  <div class="talent-catalog-panel">
+    <header class="section-heading"><div><span class="hq-kicker">TALENT CATALOG</span><h2>Verified role templates</h2></div><b>{{ snapshot.candidates|length }}</b></header>
+    <form class="talent-filter" method="get"><input name="q" value="{{ request.args.get('q','') }}" placeholder="Search role, name, or skill"><input name="department" value="{{ request.args.get('department','') }}" placeholder="Department"><button class="hq-button secondary">FILTER</button></form>
+    <div class="talent-list">
+      {% for candidate in snapshot.candidates %}
+      <article class="talent-role-card">
+        <header><span>{{ candidate.department_hint or 'Unassigned Department' }}</span><em>{{ candidate.source }}</em></header>
+        <h3>{{ candidate.role_title }}</h3><p>{{ candidate.mission }}</p>
+        <div class="talent-skills">{% for skill in candidate.skills_json[:6] %}<span>{{ skill }}</span>{% endfor %}</div>
+        <details><summary>ROLE DETAILS</summary><h4>Responsibilities</h4><ul>{% for item in candidate.responsibilities_json %}<li>{{ item }}</li>{% endfor %}</ul><h4>Deliverables</h4><ul>{% for item in candidate.deliverables_json %}<li>{{ item }}</li>{% endfor %}</ul></details>
+        <a href="#request-hire" data-candidate="{{ candidate.id }}">REQUEST HR ASSESSMENT →</a>
+      </article>
+      {% else %}<div class="empty-stage compact"><h3>No verified role templates are loaded.</h3><p>Import the Founder source before presenting the 147 roles.</p></div>{% endfor %}
+    </div>
+  </div>
+
+  <aside class="hr-request-panel" id="request-hire">
+    <header><span class="hq-kicker">STAFFING REQUEST</span><h2>Ask HR to assess a capability gap.</h2><p>This can call the HR Director model when configured. It does not hire automatically.</p></header>
+    <form method="post" action="/team/hr/requests">
+      <label>Role or capability needed<input name="role_needed" required></label>
+      <label>Problem to solve<textarea name="problem" required></textarea></label>
+      <label>Why now<textarea name="why_now"></textarea></label>
+      <label>Candidate<select name="talent_template_id"><option value="">No candidate selected</option>{% for candidate in snapshot.candidates %}<option value="{{ candidate.id }}">{{ candidate.role_title }}</option>{% endfor %}</select></label>
+      <input type="hidden" name="responsibilities" value="Solve the stated capability problem">
+      <input type="hidden" name="capabilities" value="{{ request.args.get('q','') or 'Required specialist capability' }}">
+      <input type="hidden" name="urgency" value="MEDIUM"><input type="hidden" name="use_frequency" value="OCCASIONAL">
+      <button class="hq-button">AUTHORIZE ONE HR ASSESSMENT</button>
+      <small>Current assessment ceiling: {{ ('NT$ ' ~ (snapshot.authorization|money)) if snapshot.authorization is not none else 'Unavailable until HR has an AI Core' }}</small>
+    </form>
+    <section class="open-hiring-requests"><h3>Recent requests</h3>{% for item in snapshot.requests[:8] %}<article><span>{{ item.status|replace('_',' ') }}</span><b>{{ item.role_needed }}</b><small>{{ item.problem }}</small></article>{% else %}<p>No staffing request has been recorded.</p>{% endfor %}</section>
+  </aside>
+</section>
+{% endblock %}

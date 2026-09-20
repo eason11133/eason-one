@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071018">
+  <title>{% block title %}Eason One Headquarters{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='headquarters.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='headquarters-v0106.css') }}?v=0.10.12">
+  <link rel="stylesheet" href="{{ url_for('static', filename='headquarters-v01012.css') }}?v=0.10.12">
+  <link rel="stylesheet" href="{{ url_for('static', filename='headquarters-v0110.css') }}?v=0.12.2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='headquarters-v013.css') }}?v=0.13.0">
+  <link rel="stylesheet" href="{{ url_for('static', filename='headquarters-v017.css') }}?v=0.17.1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='headquarters-pulse-v1.css') }}?v=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='headquarters-presentation-v1.css') }}?v=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='headquarters-intelligence-v1.css') }}?v=1">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="hq-body {% block body_class %}{% endblock %}">
+  <div class="hq-noise" aria-hidden="true"></div>
+  <div class="hq-shell">
+    <aside class="hq-rail" aria-label="Headquarters navigation">
+      <a class="hq-brand" href="/headquarters" aria-label="Eason One Headquarters">
+        <span class="hq-brand-mark">E1</span>
+        <span class="hq-brand-copy"><b>EASON ONE</b><small>HEADQUARTERS</small></span>
+      </a>
+      <nav class="hq-nav v013-nav">
+        {% set primary_nav = [
+          ('/headquarters','HQ','⌂'),
+          ('/headquarters/projects','Projects','◇'),
+          ('/headquarters/people','People','P'),
+          ('/headquarters/meetings','Meetings','◎'),
+          ('/headquarters/results','Results','R')
+        ] %}
+        {% for href,label,icon in primary_nav %}
+          {% set active =
+            (label=='HQ' and request.path in ['/headquarters','/hq']) or
+            (label=='Projects' and request.path.startswith('/headquarters/projects')) or
+            (label=='People' and request.path.startswith('/headquarters/people')) or
+            (label=='Meetings' and request.path.startswith('/headquarters/meetings')) or
+            (label=='Results' and (request.path.startswith('/headquarters/results') or request.path.startswith('/headquarters/artifacts')))
+          %}
+          <a class="hq-nav-item {{ 'is-active' if active }}" href="{{ href }}">
+            <span class="hq-nav-icon">{{ icon }}</span><span>{{ label }}</span>
+          </a>
+        {% endfor %}
+        <span class="v013-nav-divider" aria-hidden="true"></span>
+        {% set secondary_nav = [
+          ('/headquarters/missions','Mission Control','M'),
+          ('/headquarters/memory','Memory','V'),
+          ('/headquarters/finance','Finance','$'),
+          ('/headquarters/market','Market','E'),
+          ('/headquarters/research','Research','Q'),
+          ('/headquarters/system','System','S')
+        ] %}
+        {% for href,label,icon in secondary_nav %}
+          {% set active =
+            (label=='Mission Control' and request.path.startswith('/headquarters/missions')) or
+            (label=='Memory' and request.path.startswith('/headquarters/memory')) or
+            (label=='Finance' and request.path.startswith('/headquarters/finance')) or
+            (label=='Market' and request.path.startswith('/headquarters/market')) or
+            (label=='Research' and request.path.startswith('/headquarters/research')) or
+            (label=='System' and (request.path.startswith('/headquarters/system') or request.path.startswith('/headquarters/attention')))
+          %}
+          <a class="hq-nav-item v013-nav-secondary {{ 'is-active' if active }}" href="{{ href }}">
+            <span class="hq-nav-icon">{{ icon }}</span><span>{{ label }}</span>
+          </a>
+        {% endfor %}
+      </nav>
+      <div class="hq-rail-footer">
+        <a class="hq-mobile-link" href="/mobile"><span>↗</span><span>MOBILE CEO</span></a>
+        <div class="hq-system-light"><i></i><span>LOCAL HQ</span></div>
+      </div>
+    </aside>
+
+    <div class="hq-main-shell">
+      <header class="hq-topbar">
+        <div class="hq-topbar-company">
+          <span class="hq-kicker">FOUNDER ON SITE</span>
+          <strong>{{ snapshot.company.name|english_ui('Eason One') if snapshot and snapshot.company else 'Eason One' }}</strong>
+        </div>
+        <div class="hq-topbar-pulse">{% block pulse %}<span class="hq-pulse-item"><i class="pulse-dot"></i>HEADQUARTERS ONLINE</span>{% endblock %}</div>
+        <div class="hq-topbar-actions">
+          <time data-hq-clock>--:--</time>
+          <a class="hq-quiet-button hq-ceo-line-button" href="/headquarters#ceo-line">CEO LINE</a>
+          <a class="hq-founder-avatar" href="/headquarters" aria-label="Founder Eason">E</a>
+        </div>
+      </header>
+
+      <section class="hq-global-runtime" data-global-runtime hidden aria-live="polite">
+        <i class="hq-global-runtime-dot"></i>
+        <div class="hq-global-runtime-copy"><b data-global-runtime-title>Company work is running</b><span data-global-runtime-meta></span><em class="hq-global-runtime-state" data-global-runtime-state>WORKING</em></div>
+        <a data-global-runtime-link href="/headquarters/projects">OPEN PROJECT →</a>
+      </section>
+
+      <main class="hq-content">
+        {% with messages=get_flashed_messages(with_categories=true) %}
+          {% for category,message in messages %}<div class="hq-flash {{ category }}">{{ message|english_ui('The operation could not be completed.') }}</div>{% endfor %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+{% if request.path != '/headquarters' %}
+  <section class="ceo-dock" data-command-dock aria-hidden="true">
+    <button class="ceo-dock-backdrop" type="button" data-command-close aria-label="Close CEO command"></button>
+    <div class="ceo-dock-panel">
+      <div class="ceo-dock-head">
+        <div class="ceo-orb mini" aria-hidden="true"><span></span></div>
+        <div><span class="hq-kicker">CEO OFFICE · DIRECT LINE</span><h2>What should the company do?</h2></div>
+        <button type="button" class="ceo-dock-close" data-command-close>×</button>
+      </div>
+      <form method="post" action="/headquarters" class="ceo-command-form">
+        {% if snapshot and snapshot.project %}<input type="hidden" name="project_id" value="{{ snapshot.project.id }}">{% endif %}
+        <textarea name="request" required autofocus placeholder="{% if snapshot and snapshot.project %}Ask the CEO about {{ snapshot.project.name|english_ui('this Project') }}…{% else %}Ask the CEO about a Project, decision, or company work…{% endif %}"></textarea>
+        <div class="ceo-command-actions">
+          <span>Project context stays persisted. The CEO decides the smallest sufficient execution path.</span>
+          <button name="mode" value="briefing" class="hq-button secondary">GET BRIEFING</button>
+          <button name="mode" value="command" class="hq-button">ISSUE COMMAND</button>
+        </div>
+      </form>
+    </div>
+  </section>
+{% endif %}
+
+  <script src="{{ url_for('static', filename='headquarters.js') }}?v=0.20-pulse1"></script>
+  <script src="{{ url_for('static', filename='global-runtime.js') }}?v=0.17.1"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,43 @@
+{% extends "hq_base.html" %}
+{% block title %}Results · Eason One{% endblock %}
+{% block body_class %}v013-results-page{% endblock %}
+{% block pulse %}
+  <span class="hq-pulse-item"><i class="pulse-dot"></i>{{ snapshot.results|length }} REVIEWABLE RESULT{{ '' if snapshot.results|length==1 else 'S' }}</span>
+{% endblock %}
+{% block content %}
+<div class="v013-page">
+  <header class="v013-page-hero">
+    <div>
+      <span class="hq-kicker">RESULTS</span>
+      <h1>What the company actually made.</h1>
+      <p>Results belong to Projects. A successful Run is not automatically a Result, and an unverified Task Result is never presented as a validated Artifact.</p>
+    </div>
+    <button class="hq-button" type="button" data-command-open>ASK CEO ABOUT RESULTS</button>
+  </header>
+
+  <section class="v013-results-grid">
+    {% for result in snapshot.results %}
+    <a class="v013-result-card verification-{{ result.verification|lower }}" href="{{ result.href }}"{% if result.deliverables|selectattr('available')|list %} target="_blank" rel="noopener"{% endif %}>
+      <header><span>{{ result.kind|replace('_',' ') }}</span><time>{{ result.age }}</time></header>
+      <div class="v013-result-meta">
+        <span>{{ result.project.name if result.project else 'Company' }}</span>
+        <span>{{ result.verification }}</span>
+        {% if result.employee %}<span>{{ result.employee.name }}</span>{% endif %}
+        {% if result.files %}<span>{{ result.files|length }} FILE{{ '' if result.files|length==1 else 'S' }}</span>{% endif %}
+        {% if result.checks %}<span>{{ result.checks|length }} CHECK{{ '' if result.checks|length==1 else 'S' }}</span>{% endif %}
+      </div>
+      <h2>{{ result.title }}</h2>
+      <p>{{ result.summary }}</p>
+      <footer>{% if result.deliverables|selectattr('available')|list %}OPEN DELIVERABLE →{% elif result.readable %}READ RESULT →{% else %}VIEW EVIDENCE →{% endif %}</footer>
+    </a>
+    {% else %}
+    <div class="v013-board-empty">
+      <span class="hq-kicker">NO REVIEWABLE RESULTS YET</span>
+      <h2>Runs do not count as outcomes.</h2>
+      <p>A Result appears only after a Task or Project has a concrete persisted output. Verification remains explicit.</p>
+      <a class="hq-button" href="/headquarters#ceo-line">START WITH CEO</a>
+    </div>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}

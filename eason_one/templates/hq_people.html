@@ -1,0 +1,52 @@
+{% extends "hq_base.html" %}
+{% block title %}People · Eason One{% endblock %}
+{% block body_class %}hq-people-page hq-scene-people{% endblock %}
+{% block pulse %}
+  <span class="hq-pulse-item"><i class="pulse-dot"></i>{{ snapshot.metrics.total }} EMPLOYEES</span>
+  <span class="hq-pulse-item">{{ snapshot.metrics.working }} WORKING</span>
+  <span class="hq-pulse-item">{{ snapshot.metrics.available }} AVAILABLE</span>
+{% endblock %}
+{% block content %}
+<section class="hq-room-heading">
+  <div><span class="hq-kicker">PEOPLE & DEPARTMENTS</span><h1>The company as an operating organization.</h1><p>Every Employee keeps one persistent identity. Open a dossier to inspect current work, history, contribution, Meetings, AI Core, and career movement.</p></div>
+  <div class="arrival-actions"><a class="hq-button secondary" href="/headquarters/people/talent">OPEN HR & TALENT</a><button class="hq-button" data-command-open>ASK CEO ABOUT PEOPLE</button></div>
+</section>
+
+<section class="org-pulse-ribbon">
+  <div><b>{{ snapshot.metrics.departments }}</b><span>Departments</span></div>
+  <div><b>{{ snapshot.metrics.total }}</b><span>Persistent Employees</span></div>
+  <div><b>{{ snapshot.metrics.working }}</b><span>Active now</span></div>
+  <div><b>{{ snapshot.metrics.available }}</b><span>Available</span></div>
+</section>
+
+<section class="hr-operations-entry">
+  <div><span class="hq-kicker">HR OPERATIONS</span><h2>Workforce planning is separate from the active roster.</h2><p>The 147-role library belongs in the Talent Catalog. Roles are candidates—not automatically hired Employees.</p></div>
+  <div class="hr-entry-metrics"><span><b>{{ snapshot.hr.talent_count }}</b><small>verified role templates</small></span><span><b>{{ snapshot.hr.open_requests }}</b><small>open staffing requests</small></span><span><b>{{ 'SOURCE READY' if snapshot.hr.source_ready else 'SOURCE MISSING' }}</b><small>{{ snapshot.hr.source if snapshot.hr.source else 'Add the Founder role source to import it without fabrication.' }}</small></span></div>
+  <a class="hq-button" href="/headquarters/people/talent">ENTER HR OFFICE</a>
+</section>
+
+<section class="org-floor" aria-label="Company organization">
+  <div class="org-spine" aria-hidden="true"></div>
+  {% for department,employees in snapshot.departments.items() %}
+  <article class="department-floor {{ 'executive-floor' if department=='CEO Office' else '' }}">
+    <header>
+      <div><span class="hq-kicker">{{ 'EXECUTIVE OFFICE' if department=='CEO Office' else 'DEPARTMENT' }}</span><h2>{{ department|english_ui('Company Office') }}</h2></div>
+      <span>{{ employees|length }} PEOPLE</span>
+    </header>
+    <div class="department-people-line">
+      {% for row in employees %}
+      <a class="person-station state-{{ row.state|lower }}" href="/headquarters/employees/{{ row.employee.id }}">
+        <span class="person-station-avatar"><b>{{ row.initials }}</b><i></i></span>
+        <div class="person-station-copy">
+          <span>{{ row.position|english_ui('Employee') }}</span>
+          <h3>{{ row.employee.name|english_ui('Employee') }}</h3>
+          <p>{{ row.task.title|english_ui('Current specialist task') if row.task else 'No active Task' }}</p>
+        </div>
+        <aside><b>{{ row.state_label }}</b><small>{{ row.last_update }}</small></aside>
+      </a>
+      {% endfor %}
+    </div>
+  </article>
+  {% endfor %}
+</section>
+{% endblock %}

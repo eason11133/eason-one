@@ -1,6 +1,7 @@
 {% extends "base.html" %}{% block content %}
 <header class="page-header"><div><span class="eyebrow">Governance</span><h1>Founder Inbox</h1><p>Only decisions requiring Founder authority appear first.</p></div></header>
 <section class="surface"><h2>NEEDS YOUR DECISION</h2>
+{% for item in governance %}<article class="task"><div><span class="status-pill">{{item.type|replace('_',' ')}}</span><h3>{{item.operation.title}}</h3><p>{{item.operation.waiting_reason}}</p>{% if item.type=='BUDGET_AUTHORIZATION' %}<small>Authorized NT$ {{item.budget.authorized|money}} · Spent NT$ {{item.budget.spent|money}} · Additional NT$ {{item.budget.additional|money}} · Resulting total NT$ {{item.budget.resulting|money}}</small>{% endif %}</div><a href="{{item.href}}">Review</a></article>{% endfor %}
 {% for p in pending %}
   {% set kind=p.payload_json.get('type','KNOWLEDGE') %}
   {% set plan=p.payload_json.get('plan',{}) %}
@@ -8,7 +9,7 @@
   {% if kind=='PROJECT_PLAN' %}<form method="post" action="/inbox/{{p.id}}/materialize"><button>Approve</button></form><form method="post" action="/inbox/{{p.id}}/reject"><button class="secondary">Reject</button></form>
   {% else %}<form method="post" action="/inbox/{{p.id}}/knowledge-review"><button name="decision" value="APPROVED">Approve</button><button name="decision" value="REJECTED" class="secondary">Reject</button></form>{% endif %}
   <details><summary>Review and advanced audit</summary><p>Scope: {{'Company' if not p.project_id else 'Project #' ~ p.project_id}}</p><pre>{{p.payload_json|tojson(indent=2)}}</pre></details></article>
-{% else %}<div class="empty-state"><h3>No decisions waiting.</h3><p>The CEO has not requested additional Founder authority.</p></div>{% endfor %}
+{% else %}{% if not governance %}<div class="empty-state"><h3>No decisions waiting.</h3><p>The CEO has not requested additional Founder authority.</p></div>{% endif %}{% endfor %}
 </section>
 <details class="details-panel"><summary>HISTORY</summary>
 {% for p in history %}<article class="task"><div><b>{{p.payload_json.get('type','KNOWLEDGE')|replace('_',' ')|title}}</b><small>{{p.status|title}} · {{'Company' if not p.project_id else 'Project #' ~ p.project_id}}</small></div><details><summary>Advanced audit</summary><pre>{{p.payload_json|tojson(indent=2)}}</pre></details></article>{% else %}<p>No reviewed decisions.</p>{% endfor %}

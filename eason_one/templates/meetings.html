@@ -13,7 +13,7 @@
         <span class="meeting-state"><i></i><b>{{'PLANNED / READY TO START' if row.meeting.status=='PLANNED' else row.founder_status}}</b><small>{{'Open to review and start' if row.meeting.status=='PLANNED' else ('Round ' ~ row.meeting.current_round ~ ' of ' ~ row.meeting.max_rounds)}}</small></span>
         <span class="meeting-identity"><small>{{row.meeting.project.name if row.meeting.project else 'COMPANY'}}</small><strong>{{row.meeting.title}}</strong><em>{{row.meeting.meeting_question or row.meeting.purpose}}</em></span>
         <span class="meeting-people">{% for participant in row.meeting.participants[:4] %}<i class="mini-avatar" aria-hidden="true">{{participant.employee.name.split()|map('first')|join}}</i>{% endfor %}<small class="participant-names">{{row.participant_label}}</small></span>
-        <span class="meeting-economics"><b>{{row.calls}} calls</b><small>{{row.tokens}} tokens · ACTUAL COST TWD {{row.cost}}</small></span>
+        <span class="meeting-economics"><b>{{row.calls}} calls</b><small>{{row.tokens}} tokens · LOCAL MODEL COST TWD {{row.cost}}</small></span>
         <span class="row-arrow">→</span>
       </a>
       {% else %}<div class="lobby-empty"><h3>No live Meeting</h3><p>The company is not in session.</p></div>{% endfor %}
@@ -28,7 +28,7 @@
         <span class="meeting-state"><b>{{row.founder_status}}</b><small>{{row.meeting.updated_at.strftime('%Y-%m-%d') if row.meeting.updated_at else ''}}</small></span>
         <span class="meeting-identity"><small>{{row.meeting.project.name if row.meeting.project else 'COMPANY'}}</small><strong>{{row.meeting.title}}</strong>{% if row.result_excerpt %}<em>{{row.result_excerpt}}</em>{% endif %}</span>
         <span class="meeting-people">{% for participant in row.meeting.participants[:4] %}<i class="mini-avatar" aria-hidden="true">{{participant.employee.name.split()|map('first')|join}}</i>{% endfor %}<small class="participant-names">{{row.participant_label}}</small></span>
-        <span class="meeting-economics"><b>{{row.calls}} calls</b><small>{{row.tokens}} tokens · ACTUAL COST TWD {{row.cost}}</small></span>
+        <span class="meeting-economics"><b>{{row.calls}} calls</b><small>{{row.tokens}} tokens · LOCAL MODEL COST TWD {{row.cost}}</small></span>
         <span class="row-arrow">→</span>
       </a>
       {% else %}<div class="lobby-empty"><h3>No results yet</h3><p>Completed Meeting outcomes will appear here.</p></div>{% endfor %}

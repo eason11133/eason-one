@@ -1,0 +1,278 @@
+{% extends "hq_base.html" %}
+{% block title %}{{ snapshot.employee.name|english_ui('Employee') }} · Employee Dossier{% endblock %}
+{% block body_class %}hq-employee-page{% endblock %}
+{% block pulse %}
+  <a class="hq-pulse-item" href="/headquarters/people">← PEOPLE</a>
+  <span class="hq-pulse-item state-{{ snapshot.presence.state|lower }}"><i class="pulse-dot"></i>{{ snapshot.presence.state_label }}</span>
+  <span class="hq-pulse-item">EMPLOYEE #{{ snapshot.employee.id }}</span>
+  <span class="hq-pulse-item">{{ snapshot.employee.department.name|english_ui('CEO OFFICE') if snapshot.employee.department else 'CEO OFFICE' }}</span>
+{% endblock %}
+
+{% block content %}
+<section class="employee-identity-stage">
+  <div class="employee-portrait-wrap">
+    <div class="employee-portrait state-{{ snapshot.presence.state|lower }}"><span>{{ snapshot.initials }}</span><i></i></div>
+    <span class="employee-id">EMP-{{ '%04d'|format(snapshot.employee.id) }}</span>
+  </div>
+  <div class="employee-identity-copy">
+    <div class="mission-breadcrumb"><a href="/headquarters">HEADQUARTERS</a><span>/</span><a href="/headquarters/people">PEOPLE</a><span>/</span><b>DOSSIER</b></div>
+    <span class="hq-kicker">PERSISTENT EMPLOYEE IDENTITY</span>
+    <h1>{{ snapshot.employee.name|english_ui('Employee') }}</h1>
+    <p>{{ snapshot.employee.role_description|english_ui('Persistent specialist Employee in Eason One.') }}</p>
+    <div class="employee-role-line">
+      <span>{{ snapshot.employee.position.name|english_ui('EMPLOYEE') if snapshot.employee.position else 'EMPLOYEE' }}</span>
+      <span>{{ snapshot.employee.department.name|english_ui('CEO OFFICE') if snapshot.employee.department else 'CEO OFFICE' }}</span>
+      <span>REPORTS TO {{ snapshot.manager.name|english_ui('FOUNDER / BOARD') if snapshot.manager else 'FOUNDER / BOARD' }}</span>
+    </div>
+  </div>
+  <div class="employee-now-card">
+    <span class="hq-kicker">CURRENT PRESENCE</span>
+    <h2>{{ snapshot.presence.state_label }}</h2>
+    {% if snapshot.presence.task %}
+      <p>{{ snapshot.presence.task.title|english_ui('Current specialist Task') }}</p>
+      <a href="{{ '/headquarters/missions/' ~ snapshot.presence.task.operation_id if snapshot.presence.task.operation_id else '/headquarters/projects/' ~ snapshot.presence.task.project_id }}">OPEN CURRENT WORK →</a>
+    {% else %}
+      <p>No active governed Task is assigned.</p>
+    {% endif %}
+    <small>Last update · {{ snapshot.presence.last_update }}</small>
+  </div>
+</section>
+
+<section class="employee-metric-ribbon">
+  <div><strong>{{ snapshot.metrics.active_tasks }}</strong><span>Active tasks</span></div>
+  <div><strong>{{ snapshot.metrics.completed_tasks }}</strong><span>Completed tasks</span></div>
+  <div><strong>{{ snapshot.meaningful_contribution }}</strong><span>Contribution units</span></div>
+  <div><strong>{{ snapshot.metrics.meetings }}</strong><span>Meetings</span></div>
+  <div><strong>{{ snapshot.metrics.successful_runs }}</strong><span>Successful runs</span></div>
+  <div><strong>NT$ {{ snapshot.metrics.real_cost|money }}</strong><span>Local model cost</span></div>
+</section>
+
+<nav class="dossier-tabs" data-tabs>
+  <button class="is-active" data-tab-target="overview">OVERVIEW</button>
+  <button data-tab-target="work">WORK</button>
+  <button data-tab-target="history">HISTORY</button>
+  <button data-tab-target="contribution">CONTRIBUTION</button>
+  <button data-tab-target="career">CAREER</button>
+  <button data-tab-target="economy">ECONOMY</button>
+  <button data-tab-target="ai-core">AI CORE</button>
+  <button data-tab-target="audit">AUDIT</button>
+</nav>
+
+<div class="dossier-content">
+  <section class="dossier-panel is-active" data-tab-panel="overview">
+    <div class="dossier-grid two">
+      <article class="dossier-card current-desk-card">
+        <header><span class="hq-kicker">CURRENT DESK</span><span class="status-chip state-{{ snapshot.presence.state|lower }}">{{ snapshot.presence.state_label }}</span></header>
+        {% if snapshot.presence.task %}
+          <h2>{{ snapshot.presence.task.title|english_ui('Current specialist Task') }}</h2>
+          <p>{{ snapshot.presence.task.objective|english_ui('Complete the assigned specialist work.') }}</p>
+          <dl>
+            <div><dt>Mission</dt><dd>{{ snapshot.presence.task.project.name|english_ui('Mission') }}</dd></div>
+            <div><dt>Required output</dt><dd>{{ snapshot.presence.task.required_output|english_ui('Not structured') if snapshot.presence.task.required_output else 'Not structured' }}</dd></div>
+            <div><dt>Validation</dt><dd>{% if snapshot.employee.slug=='engineer' %}Engineer self-validation · CEO delivery acceptance{% elif snapshot.presence.task.reviewer %}Independent review · {{ snapshot.presence.task.reviewer.name|english_ui('Reviewer') }}{% else %}No independent reviewer{% endif %}</dd></div>
+            <div><dt>Checkpoint</dt><dd>{{ snapshot.presence.last_update }}</dd></div>
+          </dl>
+        {% else %}
+          <div class="empty-stage compact"><h3>Available for assignment</h3><p>This Employee has no active persisted Task.</p></div>
+        {% endif %}
+      </article>
+
+      <article class="dossier-card">
+        <header><span class="hq-kicker">WORK POLICY</span><span>FOUNDATION VIEW</span></header>
+        <h2>{{ snapshot.work_policy.type }}</h2>
+        <dl>
+          <div><dt>Regular hours</dt><dd>{{ snapshot.work_policy.regular_hours }}</dd></div>
+          <div><dt>Current session</dt><dd>{{ snapshot.work_policy.current_session }}</dd></div>
+          <div><dt>Last checkpoint</dt><dd>{{ snapshot.work_policy.last_checkpoint }}</dd></div>
+        </dl>
+        <p class="dossier-note">The visual contract is ready. Persistent WorkPolicy and WorkSession tables will be connected in the runtime phase; this page does not fabricate clock-in records.</p>
+      </article>
+
+      <article class="dossier-card">
+        <header><span class="hq-kicker">REPORTING LINE</span><span>{{ snapshot.reports|length }} DIRECT REPORTS</span></header>
+        {% if snapshot.manager %}<a class="relationship-row" href="/headquarters/employees/{{ snapshot.manager.id }}"><span class="person-avatar small">{{ snapshot.manager.name[:2]|upper }}</span><span><b>{{ snapshot.manager.name|english_ui('Manager') }}</b><small>Manager</small></span></a>{% endif %}
+        {% for employee in snapshot.reports %}<a class="relationship-row" href="/headquarters/employees/{{ employee.id }}"><span class="person-avatar small">{{ employee.name[:2]|upper }}</span><span><b>{{ employee.name|english_ui('Employee') }}</b><small>Direct report · {{ employee.position.name|english_ui('Employee') }}</small></span></a>{% else %}{% if not snapshot.manager %}<div class="signal-empty">No reporting relationship recorded.</div>{% endif %}{% endfor %}
+      </article>
+
+      <article class="dossier-card">
+        <header><span class="hq-kicker">CURRENT AI CORE</span><span>PERSISTENT IDENTITY</span></header>
+        {% if snapshot.employee.current_model %}
+          <h2>{{ snapshot.employee.current_model.label|english_ui('Assigned model') }}</h2>
+          <dl>
+            <div><dt>Provider</dt><dd>{{ snapshot.employee.current_model.provider_key }}</dd></div>
+            <div><dt>Model</dt><dd>{{ snapshot.employee.current_model.model_name }}</dd></div>
+            <div><dt>{{ 'Concurrency' if snapshot.employee.current_model.provider_key=='codex' else 'Output cap' }}</dt><dd>{% if snapshot.employee.current_model.provider_key=='codex' %}1 bounded local job{% else %}{{ snapshot.employee.current_model.max_output_tokens }} tokens{% endif %}</dd></div>
+          </dl>
+          <p class="dossier-note">AI Core may change. Employee ID, role, corrections, contribution, and history remain attached to this person.</p>
+        {% else %}<div class="signal-empty">No active AI Core assigned.</div>{% endif %}
+      </article>
+    </div>
+  </section>
+
+  <section class="dossier-panel" data-tab-panel="work">
+    <header class="section-heading"><div><span class="hq-kicker">WORK RECORD</span><h2>Every Task and Mission assignment</h2></div></header>
+    <div class="record-table">
+      <div class="record-row record-head"><span>Status</span><span>Task</span><span>Mission</span><span>Reviewer</span><span>Updated</span></div>
+      {% for task in snapshot.tasks %}
+        <a class="record-row" href="{{ '/headquarters/missions/' ~ task.operation_id if task.operation_id else '/headquarters/missions' }}">
+          <span><i class="state-dot {{ task.status|lower }}"></i>{{ task.status }}</span>
+          <span><b>{{ task.title|english_ui('Specialist Task') }}</b><small>{{ task.objective|english_ui('Complete the assigned specialist work.')|truncate(120) }}</small></span>
+          <span>{{ task.project.name|english_ui('Mission') }}</span>
+          <span>{% if snapshot.employee.slug=='engineer' %}Self-validation · CEO acceptance{% elif task.reviewer %}{{ task.reviewer.name|english_ui('Reviewer') }}{% else %}No independent reviewer{% endif %}</span>
+          <span>{{ task.updated_at }}</span>
+        </a>
+      {% else %}<div class="signal-empty">No Task history recorded.</div>{% endfor %}
+    </div>
+  </section>
+
+  <section class="dossier-panel" data-tab-panel="history">
+    <header class="section-heading"><div><span class="hq-kicker">EMPLOYEE HISTORY</span><h2>One identity across roles, models, and Missions</h2></div></header>
+    <div class="career-timeline">
+      {% for event in snapshot.history %}
+        <article class="career-event kind-{{ event.kind|lower }}"><span class="career-marker">{{ event.kind[0] }}</span><div><span>{{ event.kind }}</span><h3>{{ event.title|english_ui('History event') }}</h3><p>{{ event.detail|english_ui('Source-linked Employee history event.') }}</p></div><time>{{ event.age }}</time></article>
+      {% else %}<div class="signal-empty">No history events have been recorded.</div>{% endfor %}
+    </div>
+  </section>
+
+  <section class="dossier-panel" data-tab-panel="contribution">
+    <header class="section-heading"><div><span class="hq-kicker">CONTRIBUTION & PROVENANCE</span><h2>What this Employee actually changed</h2></div></header>
+    <div class="dossier-grid two">
+      <article class="dossier-card">
+        <header><span class="hq-kicker">CONTRIBUTION EVENTS</span><b>{{ snapshot.contributions|length }}</b></header>
+        <div class="contribution-records">
+          {% for item in snapshot.contributions %}<div><span>{{ item.event_type|replace('_',' ') }}</span><b>{{ item.value }}</b><p>{{ item.reason|english_ui('Recorded contribution') }}</p><small>{{ item.status }} · {{ item.related_reference or 'No reference' }}</small></div>{% else %}<div class="signal-empty">No explicit contribution events.</div>{% endfor %}
+        </div>
+      </article>
+      <article class="dossier-card">
+        <header><span class="hq-kicker">FOUNDER FEEDBACK</span><b>{{ snapshot.feedback|length }}</b></header>
+        <div class="contribution-records">
+          {% for item in snapshot.feedback %}<div><span>{{ item.signal|replace('_',' ') }}</span><p>{{ item.note|english_ui('No Founder note') if item.note else 'No Founder note' }}</p><small>Meeting #{{ item.meeting_id }} · Message #{{ item.message_id }}</small></div>{% else %}<div class="signal-empty">No direct Founder feedback recorded.</div>{% endfor %}
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="dossier-panel" data-tab-panel="career" id="learning">
+    <header class="section-heading"><div><span class="hq-kicker">CAREER CAPITAL</span><h2>Skills, learning, promotion evidence</h2></div></header>
+    <div class="dossier-grid two">
+      <article class="dossier-card evolution-card">
+        <header><span class="hq-kicker">CAPABILITY MEMORY</span><b>{{ snapshot.evolution.canonical_record_count }} ACCEPTED RECORDS</b></header>
+        <h2>Past accepted work can change future staffing.</h2>
+        <p>{{ snapshot.evolution.behavioral_effect }}</p>
+        {% if snapshot.evolution.probation and snapshot.evolution.probation.target_assignments %}
+          <div class="evolution-behavior-summary">
+            <span>EMPLOYMENT EVOLUTION</span>
+            <strong>{{ snapshot.evolution.probation.employment_status }}</strong>
+            <small>{{ snapshot.evolution.probation.accepted_owner_assignments }} / {{ snapshot.evolution.probation.target_assignments }} accepted owner assignment(s){% if snapshot.evolution.probation.remaining_assignments %} · {{ snapshot.evolution.probation.remaining_assignments }} remaining{% else %} · evidence target met{% endif %}</small>
+          </div>
+        {% endif %}
+        <div class="evolution-capabilities">
+          {% for capability in snapshot.evolution.capabilities %}
+            <div class="evolution-capability-row">
+              <div><span>{{ capability.capability|replace('_',' ') }}</span><b>{{ capability.depth }} · {{ 'AUTHORIZED' if capability.authorized_capability else 'HISTORY ONLY' }}</b></div>
+              <strong>{{ capability.owner_acceptances }} owner · {{ capability.review_acceptances }} review</strong>
+              <small>{% if capability.authorized_capability %}Eligible as an experience tie-break only after this governed capability match.{% else %}Accepted historical evidence only; it does not authorize new Work for this capability.{% endif %} Tie-break signal {{ capability.score }} · recovery burden {{ capability.recovery_burden }}{% if capability.record_ids %} · evidence #{{ capability.record_ids|join(' · #') }}{% endif %}</small>
+            </div>
+          {% else %}
+            <div class="signal-empty">No outcome-backed capability memory yet. The Employee still keeps role capability, but past work has not influenced future staffing.</div>
+          {% endfor %}
+        </div>
+        <div class="evolution-behavior-summary"><span>STAFFING INFLUENCE</span><strong>{{ snapshot.evolution.staffing_influence_count or 0 }}</strong><small>{{ snapshot.evolution.behavior_change_count or 0 }} persisted counterfactual behavior change(s)</small></div>
+        {% for item in snapshot.evolution.staffing_influence if item.behavior_changed %}
+          <div class="learning-record evolution-decision"><span>BEHAVIOR CHANGED</span><h3>Work #{{ item.work_id }} · {{ item.required_capability|replace('_',' ') if item.required_capability else 'Capability decision' }}</h3><p>{{ item.reason }}</p><small>Selected {{ snapshot.employee.name }} instead of {{ item.counterfactual_employee_name or 'the no-learning baseline' }} because accepted outcome experience changed the governed tie-break.</small></div>
+        {% endfor %}
+        <p class="dossier-note"><b>Bounded rule.</b> Learning never creates authority or invents a capability. It only breaks ties between Employees who already satisfy the required capability.</p>
+      </article>
+      <article class="dossier-card">
+        <header><span class="hq-kicker">LEARNING RECORDS</span><b>{{ snapshot.learning|length }}</b></header>
+        {% for item in snapshot.learning %}
+          <div class="learning-record">
+            <span>{% if item.validated and item.validation_basis == 'CANONICAL_WORK_ACCEPTANCE' %}OUTCOME-BACKED{% elif item.validated %}FOUNDER VALIDATED{% else %}FOUNDER REVIEW{% endif %}</span>
+            <h3>{{ item.title|english_ui('Learning record') }}</h3>
+            <p>{{ item.content|english_ui('Structured learning record.') }}</p>
+            <small>{{ item.learning_type|replace('_',' ') }} · {{ item.validation_basis or 'UNVALIDATED' }} · {{ item.source_ref|english_ui('No source reference') if item.source_ref else 'No source reference' }}</small>
+            {% if not item.validated %}
+              <form method="post" action="/employees/{{ snapshot.employee.id }}/learning/{{ item.id }}/validate">
+                <button class="hq-button secondary">{{ 'VALIDATE CEO LEARNING' if snapshot.employee.slug=='ceo' else 'VALIDATE LEARNING' }}</button>
+              </form>
+            {% endif %}
+          </div>
+        {% else %}<div class="signal-empty">No structured learning records.</div>{% endfor %}
+      </article>
+      <article class="dossier-card">
+        <header><span class="hq-kicker">CAREER RULE</span><span>PERSISTENT IDENTITY</span></header>
+        <h2>Promotion moves the whole Employee.</h2>
+        <p>Role, authority, salary, and reporting line may change. Mission history, Founder corrections, collaboration, reputation, assets, and lessons remain attached to EMP-{{ '%04d'|format(snapshot.employee.id) }}.</p>
+        <div class="career-route"><span>{{ snapshot.employee.position.name|english_ui('Current role') }}</span><i>→</i><span>Next governed role</span><i>→</i><span>Leadership / venture</span></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="dossier-panel" data-tab-panel="economy">
+    <header class="section-heading"><div><span class="hq-kicker">LABOR ECONOMY</span><h2>Salary, wallet, contracts, and internal market life</h2></div></header>
+    <div class="economy-hero">
+      <div><span>Weekly salary</span><strong>{{ snapshot.economy.salary }} EC</strong></div>
+      <div><span>Overtime earned</span><strong>{{ snapshot.economy.overtime }} EC</strong></div>
+      <div><span>Wallet balance</span><strong>{{ snapshot.economy.balance }} EC</strong></div>
+    </div>
+    <div class="dossier-grid two">
+      <article class="dossier-card"><header><span class="hq-kicker">EASON MARKET</span><span>{{ snapshot.economy.version }}</span></header><h2>{{ snapshot.economy.wallet_state }}</h2><p>{{ snapshot.economy.boundary }}</p><dl><div><dt>Market earned</dt><dd>{{ snapshot.economy.earned }} EC</dd></div><div><dt>Market reputation</dt><dd>{{ snapshot.economy.reputation.band }} · {{ snapshot.economy.reputation.score }}</dd></div><div><dt>Accepted owner outcomes</dt><dd>{{ snapshot.economy.reputation.accepted_owner_outcomes }}</dd></div><div><dt>Settled / disputed</dt><dd>{{ snapshot.economy.reputation.settled_contracts }} / {{ snapshot.economy.reputation.disputed_contracts }}</dd></div></dl><small>{{ snapshot.economy.reputation.truth_note }}</small><a class="hq-button secondary" href="/headquarters/market">OPEN EASON MARKET</a></article>
+      <article class="dossier-card"><header><span class="hq-kicker">COST SEPARATION</span><span>NO DOUBLE COUNT</span></header><p>Employee EC, Project real-TWD authority, local model-cost estimates, and provider billing remain separate. Required Project compute is never paid from an Employee wallet.</p></article>
+    </div>
+    <article class="dossier-card" style="margin-top:14px"><header><span class="hq-kicker">MARKET LEDGER</span><span>ACCEPTED WORK ONLY</span></header><div class="market-ledger-list">{% for item in snapshot.economy.ledger %}<div class="market-ledger-row"><span><b>{{ item.entry_type|replace('_',' ') }}</b><small>{{ item.reason }}</small></span><strong>{{ item.amount_ec }} EC</strong></div>{% else %}<div class="signal-empty">No settled market earnings yet.</div>{% endfor %}</div></article>
+  </section>
+
+  <section class="dossier-panel" data-tab-panel="ai-core" id="ai-core">
+    <header class="section-heading"><div><span class="hq-kicker">AI CORE CONTROL</span><h2>Replace the execution engine without replacing the Employee</h2></div></header>
+    <div class="dossier-grid two ai-core-control-grid">
+      <article class="dossier-card ai-core-current-card">
+        <header><span class="hq-kicker">CURRENT ASSIGNMENT</span><span>EMP-{{ '%04d'|format(snapshot.employee.id) }}</span></header>
+        {% if snapshot.employee.current_model %}
+          <h2>{{ snapshot.employee.current_model.label }}</h2>
+          <dl><div><dt>Provider</dt><dd>{{ snapshot.employee.current_model.provider_key }}</dd></div><div><dt>Model</dt><dd>{{ snapshot.employee.current_model.model_name }}</dd></div><div><dt>{{ 'Maximum concurrent jobs' if snapshot.employee.current_model.provider_key=='codex' else 'Maximum output' }}</dt><dd>{% if snapshot.employee.current_model.provider_key=='codex' %}1 bounded local job{% else %}{{ snapshot.employee.current_model.max_output_tokens }} tokens{% endif %}</dd></div></dl>
+          {% if snapshot.codex_policy %}
+          <dl class="codex-policy-grid">
+            <div><dt>Readiness</dt><dd>{{ 'READY' if snapshot.codex_policy.ready else 'BLOCKED' }}</dd></div>
+            <div><dt>Transport</dt><dd>{{ (snapshot.codex_policy.transport or 'unknown')|upper }}{% if snapshot.codex_policy.distro %} · {{ snapshot.codex_policy.distro }}{% endif %}</dd></div>
+            <div><dt>Executable</dt><dd>{{ snapshot.codex_policy.path or 'Codex runtime not resolved' }}</dd></div>
+            <div><dt>Version / login</dt><dd>{{ snapshot.codex_policy.version or snapshot.codex_policy.error or 'Not probed' }}</dd></div>
+            <div><dt>Default repo</dt><dd>{{ snapshot.codex_policy.default_repo or 'Eason One project root' }}</dd></div>
+            <div><dt>Repo allowlist</dt><dd>{{ snapshot.codex_policy.allowed_repos|join(' · ') if snapshot.codex_policy.allowed_repos else 'Project root only' }}</dd></div>
+            <div><dt>Formal Mission Mock fallback</dt><dd>{{ snapshot.codex_policy.formal_mock_fallback }}</dd></div>
+            <div><dt>High-risk actions</dt><dd>Dependencies, migrations, deployment → Founder gate</dd></div>
+          </dl>
+          {% endif %}
+        {% else %}<div class="signal-empty">No AI Core is assigned.</div>{% endif %}
+        <p class="dossier-note">Changing this assignment does not erase the Employee ID, role, correction history, learning, contribution, or prior run audit.</p>
+      </article>
+      <article class="dossier-card ai-core-change-card">
+        <header><span class="hq-kicker">FOUNDER ACTION</span><span>GOVERNED CHANGE</span></header>
+        <h2>Change AI Core</h2>
+        <form method="post" action="/employees/{{ snapshot.employee.id }}/model" class="ai-core-form">
+          <label>Ready model configuration<select name="model_config_id" required>{% for model in snapshot.model_configs %}<option value="{{ model.id }}" {{ 'selected' if snapshot.employee.current_model_config_id==model.id }}>{{ model.label }} · {{ model.provider_key }} / {{ model.model_name }} · {{ '1 concurrent job' if model.provider_key=='codex' else 'cap ' ~ model.max_output_tokens }}</option>{% endfor %}</select></label>
+          <label>Reason for the change<textarea name="reason" maxlength="500" required placeholder="Why this engine is better for this Employee's current responsibilities"></textarea></label>
+          <div class="ai-core-warning"><b>Identity stays. Engine changes.</b><span>A new EmployeeModelHistory row will be written immediately.</span></div>
+          <button class="hq-button">CHANGE AI CORE</button>
+        </form>
+      </article>
+    </div>
+    <header class="section-heading subsection-heading"><div><span class="hq-kicker">AI CORE HISTORY</span><h2>Every assignment remains auditable</h2></div></header>
+    <div class="core-history">
+      {% for item in snapshot.model_history %}
+        <article><span class="core-node">{{ loop.index }}</span><div><span>{{ item.started_at }}</span><h3>{{ item.model_config.label|english_ui('Assigned model') if item.model_config else 'No model' }}</h3><p>{{ item.reason|english_ui('Assignment changed') if item.reason else 'Assignment changed' }}</p><small>{{ 'ACTIVE' if not item.ended_at else 'ENDED ' ~ item.ended_at|string }}</small></div></article>
+      {% else %}<div class="signal-empty">No AI Core history recorded.</div>{% endfor %}
+    </div>
+  </section>
+
+  <section class="dossier-panel" data-tab-panel="audit">
+    <header class="section-heading"><div><span class="hq-kicker">EXECUTION AUDIT</span><h2>Runs, tokens, cost, and failures</h2></div><a class="section-link" href="/headquarters/system/runs">SYSTEM RUNS →</a></header>
+    <div class="record-table audit-table">
+      <div class="record-row record-head"><span>Status</span><span>Purpose</span><span>Model</span><span>Tokens</span><span>Local cost</span></div>
+      {% for row in snapshot.run_audit %}
+        {% set run=row.run %}
+        <a class="record-row status-{{ row.effective_status|lower }}" href="/headquarters/system/runs/{{ run.id }}"><span>{{ row.effective_status }}</span><span><b>{{ run.purpose|english_ui('Execution') }}</b><small>{{ row.resolution or '' }}</small></span><span>{{ run.provider_key_snapshot }} / {{ run.model_name_snapshot }}</span><span>{{ (run.input_tokens or 0) + (run.output_tokens or 0) }}</span><span>{{ run.currency_snapshot }} {{ run.real_cost or 0 }}</span></a>
+      {% else %}<div class="signal-empty">No AgentRun audit records.</div>{% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

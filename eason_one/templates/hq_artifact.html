@@ -1,0 +1,90 @@
+{% extends "hq_base.html" %}
+{% block title %}{{ artifact.title }} · Result · Eason One{% endblock %}
+{% block body_class %}founder-artifact-page{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='headquarters-artifact-v1.css') }}?v=1">
+{% endblock %}
+{% block pulse %}
+  <span class="hq-pulse-item"><i class="pulse-dot"></i>VERIFIED COMPANY RESULT</span>
+{% endblock %}
+{% block content %}
+<div class="artifact-reader-shell">
+  <nav class="artifact-reader-nav">
+    <a href="/headquarters/results">← RESULTS</a>
+    <span>ARTIFACT VERSION #{{ version.id }}</span>
+  </nav>
+
+  <header class="artifact-reader-hero">
+    <div>
+      <span class="hq-kicker">{{ artifact.artifact_type|replace('_',' ') }} · ACCEPTED</span>
+      <h1>{{ artifact.title }}</h1>
+      <p>{{ project.name }}</p>
+    </div>
+    <div class="artifact-reader-integrity integrity-{{ readable.integrity|lower }}">
+      <span>CONTENT INTEGRITY</span>
+      <b>{{ readable.integrity }}</b>
+      <small>SHA-256 {{ readable.content_hash[:12] }}…</small>
+    </div>
+  </header>
+
+  <section class="artifact-reader-facts">
+    <div><span>Produced by</span><b>{{ employee.name if employee else 'Company' }}</b></div>
+    <div><span>Work</span><b>{{ work.title if work else 'Project outcome' }}</b></div>
+    <div><span>Format</span><b>{{ readable.format }}</b></div>
+    <div><span>Accepted</span><b>{{ version.accepted_at.strftime('%Y-%m-%d %H:%M') if version.accepted_at else 'Accepted' }}</b></div>
+  </section>
+
+  {% if deliverables %}
+  <section class="artifact-reader-files">
+    <span class="hq-kicker">FILES</span>
+    <div>
+      {% for item in deliverables %}
+        {% if item.available %}
+          <a href="/headquarters/artifacts/{{ version.id }}/deliverables/{{ item.index }}" target="_blank" rel="noopener">{{ item.name }} <em>OPEN →</em></a>
+        {% else %}
+          <span>{{ item.name }} <em>{{ item.integrity }}</em></span>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <article class="artifact-reader-document">
+    {% for block in readable.blocks %}
+      {% if block.kind == 'heading' %}
+        {% if block.level <= 2 %}<h2>{{ block.text }}</h2>{% elif block.level == 3 %}<h3>{{ block.text }}</h3>{% else %}<h4>{{ block.text }}</h4>{% endif %}
+      {% elif block.kind == 'bullet' %}
+        <div class="artifact-reader-bullet"><i></i><p>{{ block.text }}</p></div>
+      {% else %}
+        <p>{{ block.text }}</p>
+      {% endif %}
+    {% endfor %}
+  </article>
+
+  {% if readable.sources %}
+  <section class="artifact-reader-sources">
+    <span class="hq-kicker">PROVIDER-OBSERVED SOURCES · {{ readable.sources|length }}</span>
+    <div>
+      {% for source in readable.sources %}
+      <a href="{{ source.url }}" target="_blank" rel="noopener noreferrer">
+        <b>{{ source.title }}</b>
+        <span>{{ source.date if source.date else source.url }}</span>
+        <em>OPEN SOURCE →</em>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <details class="artifact-reader-audit">
+    <summary>ENGINEERING / AUDIT DETAILS</summary>
+    <div class="artifact-reader-audit-grid">
+      <div><span>Artifact</span><b>#{{ artifact.id }}</b></div>
+      <div><span>Version</span><b>#{{ version.id }} · v{{ version.version }}</b></div>
+      <div><span>Execution</span><b>{{ '#' ~ run.id if run else '—' }}</b></div>
+      <div><span>Verification records</span><b>{{ verifications|length }}</b></div>
+    </div>
+    {% if run %}<a class="hq-quiet-button" href="/headquarters/system/runs/{{ run.id }}">OPEN RUN AUDIT →</a>{% endif %}
+  </details>
+</div>
+{% endblock %}

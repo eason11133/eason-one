@@ -1,0 +1,114 @@
+{% extends "hq_base.html" %}
+{% block title %}{{ snapshot.mission.operation.title|english_ui('Mission') }} · Eason One{% endblock %}
+{% block body_class %}hq-mission-page{% endblock %}
+{% block pulse %}
+  {% set mission=snapshot.mission %}
+  <a class="hq-pulse-item" href="/headquarters/missions?view={{ 'validation' if mission.is_validation else 'real' }}">← MISSIONS</a>
+  <span class="hq-pulse-item state-{{ mission.classification|lower }}"><i class="pulse-dot"></i>{{ mission.classification|replace('_',' ') }}</span>
+  <span class="hq-pulse-item">{{ mission.done }}/{{ mission.total }} TASKS DONE</span>
+{% endblock %}
+{% block content %}
+{% set mission=snapshot.mission %}
+{% set runtime=snapshot.runtime or {} %}
+{% set live=runtime.get('live_execution') or {} %}
+{% set counters=live.get('counters') or {} %}
+{% set gate_kind=(mission.operation.founder_report_json or {}).get('decision_kind') %}
+
+<section class="v11-mission-hero">
+  <div>
+    <div class="mission-breadcrumb"><a href="/headquarters">HEADQUARTERS</a><span>/</span><a href="/headquarters/missions?view={{ 'validation' if mission.is_validation else 'real' }}">MISSIONS</a><span>/</span><b>#{{ mission.operation.id }}</b></div>
+    <span class="hq-kicker">{% if mission.is_archived %}RUNTIME VALIDATION ARCHIVE{% elif mission.is_validation %}SYSTEM VALIDATION{% else %}REAL MISSION{% endif %}</span>
+    <h1>{{ mission.operation.title|english_ui('Mission') }}</h1>
+    <p>{{ mission.operation.objective|english_ui('The CEO is coordinating this Mission under the approved contract.') }}</p>
+    <div class="v11-mission-tags">
+      <span>{{ mission.current_stage|replace('_',' ') }}</span><span>{{ mission.route_type|replace('_',' ') }}</span>
+      <span>{% if mission.show_progress_percent %}{{ mission.progress }}% VALID DELIVERY{% else %}{{ mission.done }}/{{ mission.total }} WORK CLOSED{% endif %}</span><span>OWNER · {{ mission.operation.proposed_by.name|english_ui('CEO') }}</span><span>{{ mission.ceo_policy_version|upper }}</span><span>UPDATED {{ mission.updated_label|upper }}</span>
+    </div>
+    <p><b>Route reason.</b> {{ mission.route_reason or 'Smallest sufficient route selected by deterministic policy.' }}</p>
+  </div>
+  <aside class="v11-cost-card">
+    <div><span>Local estimate</span><b>NT$ {{ mission.estimated|money }}</b></div>
+    <div><span>Hard cap</span><b>NT$ {{ mission.budget|money }}</b></div>
+    {% if mission.founder_declared_budget_cap is not none %}<div><span>Founder ceiling</span><b>NT$ {{ mission.founder_declared_budget_cap|money }}</b></div>{% endif %}
+    <div><span>Local model cost</span><b data-runtime-cost>NT$ {{ mission.spent|money }}</b></div>
+    <div><span>Reserved</span><b>NT$ {{ mission.reserved|money }}</b></div>
+    <div><span>Available authority</span><b data-runtime-remaining>NT$ {{ mission.remaining|money }}</b></div>
+    <div><span>Completion reserve</span><b>NT$ {{ mission.completion_reserve|money }}</b></div>
+    <div><span>Spendable before delivery</span><b>NT$ {{ mission.spendable_before_completion|money }}</b></div>
+    <div><span>Planning / company</span><b>NT$ {{ mission.planning_cost|money }} / {{ snapshot.company_spent|money }}</b></div>
+  </aside>
+</section>
+
+{% if mission.training_episode %}
+<section class="v11-archive"><strong>CEO learning episode captured.</strong> {{ mission.training_episode.summary }} The resulting policy candidate remains unvalidated until the Founder approves it in the CEO dossier.</section>
+{% endif %}
+
+{% if mission.is_archived %}
+<section class="v11-archive"><strong>Runtime validation archived.</strong> No Employee, Critic, Meeting, or Provider can resume this Mission. The evidence remains available below.</section>
+{% endif %}
+
+{% if mission.governance and not mission.is_archived %}
+<section class="governance-gate">
+  <div class="gate-beacon"><span>FOUNDER</span><b>GATE</b></div>
+  <div class="gate-copy"><span class="hq-kicker">FOUNDER AUTHORITY</span><h2>{{ mission.governance.type|replace('_',' ') }}</h2><p>{{ (mission.operation.waiting_reason or mission.summary)|english_ui('Founder authority is required before work can continue.') }}</p></div>
+  <div class="gate-actions">
+    <form method="post" action="/operations/{{ mission.operation.id }}/founder-decision"><button class="hq-button danger" name="action" value="REJECT">REJECT</button><button class="hq-button" name="action" value="APPROVE">APPROVE & CONTINUE</button></form>
+    <details class="v12-modify-gate"><summary>MODIFY AUTHORITY</summary><form method="post" action="/operations/{{ mission.operation.id }}/founder-decision"><input type="hidden" name="action" value="MODIFY"><label>Reason<input name="reason" required value="Founder modified the proposed authority."></label><label>Objective<textarea name="objective">{{ mission.operation.objective }}</textarea></label><label>Budget TWD<input name="budget_twd" type="number" step="0.0001" min="0.0001" value="{{ mission.budget }}"></label><label>Completion criteria<textarea name="completion_criteria">{% for item in mission.acceptance %}{{ item }}{% if not loop.last %}
+{% endif %}{% endfor %}</textarea></label><button class="hq-button" type="submit">APPLY & CONTINUE</button></form></details>
+  </div>
+</section>
+{% endif %}
+
+<section id="ceo-runner" class="v11-runtime state-{{ runtime.get('state','ready')|lower }}"
+  data-operation-monitor data-operation-id="{{ mission.operation.id }}"
+  {% if request.args.get('autorun')=='1' and mission.kernel_status in ['QUEUED','RUNNING'] %}data-operation-runner{% endif %}>
+  <header class="v11-runtime-head">
+    <div><span class="hq-kicker">LIVE EXECUTION MONITOR</span><h2 data-runner-title>{% if mission.is_archived %}Runtime validation archived.{% elif runtime.get('worker_alive') %}{{ (runtime.get('active_task') or {}).get('employee') or 'Employee' }} is working.{% elif mission.governance %}Execution is waiting for one explicit Founder decision.{% elif mission.classification=='BLOCKED' %}Execution is blocked.{% elif mission.kernel_status in ['QUEUED','RUNNING'] %}Mission is queued; no Employee is currently running.{% else %}No Employee Run is active.{% endif %}</h2><p data-runner-detail>{{ live.get('detail') or mission.operation.waiting_reason or runtime.get('last_error') or 'Persisted state contains no live worker lease or active Employee Run.' }}</p><small data-runtime-planning-run>{% if mission.planning_run %}Planning Run #{{ mission.planning_run.id }} is complete and separate from Employee execution.{% else %}No planning Run is linked to this Mission.{% endif %}</small></div>
+    <div class="v11-runtime-pills"><span data-runner-state>{{ mission.current_stage|replace('_',' ') }}</span><span data-runtime-activity-state>{{ ((live.get('activity_state') or 'ACTIVE') if runtime.get('worker_alive') else 'NO LIVE WORKER')|replace('_',' ') }}</span></div>
+  </header>
+  <div class="v11-runtime-facts">
+    <div><span>Authoritative state</span><b data-runtime-phase>{{ mission.current_stage|replace('_',' ') }}</b></div>
+    <div><span>Current action</span><b data-runtime-action>{{ live.get('current_action') or 'No active command' }}</b></div>
+    <div><span>Employee</span><b data-runtime-employee>{{ (runtime.get('active_task') or {}).get('employee') or 'No active Employee' }}</b></div>
+    <div><span>Employee Run</span><b data-runtime-run>{% if runtime.get('execution_run') %}#{{ runtime.execution_run.id }} · {{ runtime.execution_run.status }}{% else %}None{% endif %}</b></div>
+    <div><span>Elapsed / activity</span><b><span data-runtime-elapsed>{% if live.get('elapsed_seconds') is not none %}{{ live.get('elapsed_seconds') }}s{% else %}—{% endif %}</span> · <span data-runtime-last-activity>{% if live.get('last_activity_seconds') is not none %}{{ live.get('last_activity_seconds') }}s ago{% else %}—{% endif %}</span></b></div>
+    <div><span>Provider calls</span><b>{{ mission.limits.calls }}/{{ mission.limits.max_calls }}</b></div>
+    <div><span>Revisions</span><b>{{ mission.limits.revisions }}/{{ mission.limits.max_revisions }}</b></div>
+    <div><span>Kernel events</span><b>{{ mission.kernel_event_count }}</b></div>
+    <div><span>Execution spent</span><b data-runtime-cost>NT$ {{ mission.spent|money }}</b></div>
+    <div><span>Max elapsed</span><b>{{ mission.limits.elapsed_seconds }}s</b></div>
+  </div>
+  {% set phases=[('PREPARE',['JOB_SPEC_PREPARED']),('CONNECT',['STARTING_CODEX','CODEX_SESSION_STARTED']),('WORK',['ANALYZING_TASK','READING_REPOSITORY','RUNNING_COMMAND','APPLYING_CHANGES']),('VERIFY',['RUNNING_TESTS','SYNTHESIZING_RESULT','VALIDATING_OUTPUT']),('RESULT',['EVIDENCE_PERSISTED'])] %}
+  <div class="v11-phase-track" data-runtime-timeline data-current-phase="{{ live.get('phase') or '' }}">
+    {% for label,members in phases %}<div class="runtime-stage" data-runtime-stage="{{ members|join(',') }}"><b>{{ loop.index }} · {{ label }}</b></div>{% endfor %}
+  </div>
+  <div class="v11-runtime-main">
+    <section class="v11-live"><header><div><span class="hq-kicker">LATEST ACTIVITY</span><h3>What is moving now</h3></div><span data-runtime-event-count>{{ mission.kernel_event_count }} AUTHORITY EVENTS</span></header><div class="runtime-event-list" data-runtime-events>{% for event in (live.get('events') or [])[-6:]|reverse %}<div class="runtime-event"><time>{{ (event.at or '')[11:19] }}</time><span>{{ event.kind }}</span><p>{{ event.detail }}</p></div>{% else %}<div class="signal-empty">No live execution event has been recorded yet.</div>{% endfor %}</div></section>
+    <aside class="v11-founder-control"><span class="hq-kicker">FOUNDER CONTROL</span>
+      {% if mission.is_archived %}<h3>Archive is closed</h3><p>No runtime can restart this validation record.</p>
+      {% elif runtime.get('worker_alive') %}<h3>Current step is running</h3><p>You can leave this page. Work continues and the global status bar returns you here.</p><button class="hq-button secondary" type="button" data-runner-stop>STOP AFTER CURRENT STEP</button>
+      {% elif runtime.get('can_resume') %}<h3>Ready for one bounded step</h3><p>No second click can create a duplicate Run.</p><button class="hq-button" type="button" data-runtime-resume>RESUME ENGINEER → CODEX</button>
+      {% elif runtime.get('can_archive') %}<h3>Engineer step completed</h3><p>Review the result before any paid or independent step.</p><form method="post" action="/operations/{{ mission.operation.id }}/archive-validation"><input type="hidden" name="reason" value="Founder archived the completed validation after reviewing Engineer/Codex evidence."><button class="hq-button secondary">ARCHIVE VALIDATION</button></form>
+      {% elif mission.governance %}<h3>Founder decision required</h3><p>{{ mission.operation.waiting_reason or mission.summary }}</p><a class="hq-button" href="/headquarters/attention">OPEN DECISION</a>
+      {% elif mission.classification=='BLOCKED' %}<h3>Execution blocked</h3><p>{{ mission.operation.waiting_reason or runtime.get('last_error') or 'The runtime cannot continue until the blocker is resolved.' }}</p><a class="hq-button secondary" href="/headquarters/attention">INSPECT BLOCKER</a>
+      {% else %}<h3>No Employee is running</h3><p>The Mission is persisted, but no live worker lease or active Employee Run exists.</p>{% endif %}
+      {% if mission.next_step and not mission.is_archived %}<div class="v11-details"><span class="hq-kicker">NEXT STEP</span><p><b>{{ mission.next_step.task.title }}</b><br>{{ mission.next_step.employee.name if mission.next_step.employee else 'Unassigned' }} · {{ mission.next_step.provider }}/{{ mission.next_step.model }}{% if mission.next_step.paid %}<br>Estimated paid step NT$ {{ mission.next_step.estimate_twd|money }} · Founder approval required{% else %}<br>No paid API cost estimated{% endif %}</p></div>{% endif %}
+    </aside>
+  </div>
+  <details class="v11-details"><summary>SHOW TECHNICAL LIVE EVENT LOG / AUTHORITATIVE STATE LOG</summary><div class="runtime-event-list" data-runtime-events-full>{% for item in snapshot.activity if item.kind=='STATE' %}<div class="runtime-event"><time>{{ item.age }}</time><span>{{ item.title }}</span><p>{{ item.detail }}</p></div>{% else %}<div class="signal-empty">No authoritative event is available.</div>{% endfor %}</div></details>
+</section>
+
+<div class="v11-work-grid">
+  <section class="v11-panel"><span class="hq-kicker">EXECUTION FLOOR</span><h2>Tasks and accountable owners</h2>
+    {% for task in mission.tasks %}<article class="v11-task"><i></i><div><b>{{ task.title|english_ui('Specialist Task') }}</b><p>{{ task.objective|english_ui('Complete the assigned work.') }}</p></div><aside>{{ snapshot.task_display_status.get(task.id, task.status) }}<br>{{ task.assigned_employee.name|english_ui('Unassigned') if task.assigned_employee else 'Unassigned' }}{% if task.assigned_employee and task.assigned_employee.slug=='engineer' %}<br>Engineer self-validation{% elif task.reviewer %}<br>Review · {{ task.reviewer.name }}{% endif %}</aside></article>{% else %}<div class="signal-empty">No governed Tasks materialized.</div>{% endfor %}
+  </section>
+  <aside class="v11-panel"><span class="hq-kicker">MISSION CONTRACT</span><h2>What counts as done</h2><ol class="criteria-list">{% for item in mission.acceptance %}<li><span>{{ loop.index }}</span>{{ item|english_ui('Completion criterion') }}</li>{% else %}<li class="empty">No structured completion criteria recorded.</li>{% endfor %}</ol><hr><span class="hq-kicker">TEAM</span>{% for row in mission.team %}<p><b>{{ row.employee.name }}</b> · {{ row.state_label }}</p>{% endfor %}</aside>
+</div>
+
+<section class="v11-panel" style="margin-top:16px"><span class="hq-kicker">RESULTS</span><h2>Results and artifacts that actually exist</h2>
+  {% for artifact in snapshot.artifacts %}<article class="v11-artifact"><span class="hq-kicker">{{ artifact.status }}{% if artifact.run %} · RUN #{{ artifact.run.id }}{% endif %}</span><h3>{{ artifact.title|english_ui('Mission Artifact') }}</h3><p>{{ artifact.summary|english_ui('A reviewable Mission output was recorded.') }}</p><div class="v11-mission-tags"><span>{{ artifact.provider or 'NO PROVIDER' }} / {{ artifact.model or 'NO MODEL' }}</span><span>{{ artifact.changed_files|length }} FILES</span><span>{{ artifact.tests|length }} CHECKS</span></div>{% if artifact.tests %}<details><summary>Tests and checks</summary>{% for test in artifact.tests %}<p><b>{{ test.status }}</b> · <code>{{ test.command }}</code><br>{{ test.detail }}</p>{% endfor %}</details>{% endif %}{% if artifact.acceptance %}<details><summary>Acceptance evidence</summary>{% for item in artifact.acceptance %}<p><b>{{ item.status }}</b> · {{ item.criterion }}<br>{{ item.evidence }}</p>{% endfor %}</details>{% endif %}{% if artifact.risks %}<details><summary>Risks</summary><ul>{% for risk in artifact.risks %}<li>{{ risk }}</li>{% endfor %}</ul></details>{% endif %}{% if artifact.job_spec %}<details><summary>Engineer → Codex Job Spec</summary><pre>{{ artifact.job_spec }}</pre></details>{% endif %}{% if artifact.stderr_tail %}<details><summary>Codex diagnostics</summary><pre>{{ artifact.stderr_tail }}</pre></details>{% endif %}</article>{% else %}<div class="signal-empty">No completed, partial, or validated result exists yet.</div>{% endfor %}
+</section>
+
+<details class="v11-technical"><summary>OPEN TECHNICAL AUDIT DETAILS</summary><div class="v11-technical-body"><div><span class="hq-kicker">RECENT RUNS</span>{% for run in snapshot.runs %}<p><a href="/headquarters/system/runs/{{ run.id }}">Run #{{ run.id }}</a> · {{ run.status }} · {{ run.provider_key_snapshot }}/{{ run.model_name_snapshot }}</p>{% endfor %}</div><div><span class="hq-kicker">OPERATION STEPS</span>{% for item in snapshot.activity %}<p><b>{{ item.title }}</b><br>{{ item.detail }}</p>{% endfor %}</div></div></details>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='operation-runner.js') }}?v=0.12.2"></script>{% endblock %}

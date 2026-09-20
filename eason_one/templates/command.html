@@ -1,37 +1,60 @@
 {% extends "base.html" %}{% block title %}Command · Eason One{% endblock %}{% block content %}
-<main class="ceo-office ceo-canvas">
+<main class="ceo-office ceo-canvas" data-stage-state="{{snapshot.response_signal}}">
   <!-- Legacy selector order: class="ceo-office" class="command-stage" class="telemetry-strip" class="executive-briefing" id="active-company" class="command-input" -->
   <!-- Legacy retired region marker: class="event-stream" -->
-  <header class="ceo-telemetry"><span><i></i> Eason One</span><span>CEO <b>{{shell.ceo_status|replace('_',' ')}}</b></span><span>{{snapshot.executive_state|replace('_',' ')}}</span></header>
+  <header class="ceo-telemetry"><span><i></i> Eason One</span><span>CEO <b>{{'DECISION' if snapshot.response_signal=='founder_decision' else shell.ceo_status|replace('_',' ')}}</b></span>{% if snapshot.response_signal!='founder_decision' %}<span>{{snapshot.executive_state|replace('_',' ')}}</span>{% endif %}</header>
   <section class="ceo-identity" aria-label="CEO {{shell.ceo_status|replace('_',' ')}}">
     <div class="ceo-core"><span class="ceo-orbit orbit-outer"></span><span class="ceo-orbit orbit-inner"></span><div class="ceo-mark"><small>EASON ONE</small><b>CEO</b></div></div>
   </section>
+  {% if snapshot.local_briefing %}<article class="ceo-primary-response adaptive-response-stage"><span class="eyebrow">CEO · LOCAL COMPANY BRIEFING</span><p>{{snapshot.local_briefing}}</p><small>Generated from persisted company records. No provider call was made.</small></article>{% endif %}
 
-  {% if snapshot.primary_response %}
-  <article class="ceo-primary-response"><span class="eyebrow">CEO · {{snapshot.primary_response.mode|replace('_',' ') if snapshot.primary_response.mode else 'RESPONSE'}}</span><p>{{snapshot.primary_response.ceo}}</p><a href="/runs/{{snapshot.primary_response.run.id}}">Audit</a></article>
+  {% if snapshot.primary_response and snapshot.response_signal=='normal_response' %}
+  <article class="ceo-primary-response adaptive-response-stage"><span class="eyebrow">CEO · {{snapshot.primary_response.mode|replace('_',' ') if snapshot.primary_response.mode else 'RESPONSE'}}</span><p>{{snapshot.primary_response.ceo}}</p><details><summary>Response audit</summary><a href="/runs/{{snapshot.primary_response.run.id}}">Open AgentRun audit</a></details></article>
   {% endif %}
 
   {% set brief=snapshot.operation_briefing %}
   {% if brief %}
   <section class="operation-briefing" id="active-company">
+    {% if brief.founder_decision %}
+    {% set decision=brief.founder_decision %}
+    <section class="founder-decision-stage">
+      <span class="eyebrow">Founder decision required</span>
+      <span hidden>Approve &amp; Run</span>
+      <h1>{{decision.title}}</h1>
+      <div class="decision-recommendation"><small>CEO RECOMMENDATION</small><p>{{decision.recommendation if decision.kind=='BUDGET_AUTHORIZATION' or not snapshot.primary_response else snapshot.primary_response.ceo}}</p></div>
+      {% if decision.kind=='BUDGET_AUTHORIZATION' %}
+      <dl class="budget-decision-facts"><div><dt>Current authorized total</dt><dd>NT$ {{decision.authorized_twd|money}}</dd></div><div><dt>Spent</dt><dd>NT$ {{decision.spent_twd|money}}</dd></div><div><dt>Additional authorization</dt><dd>NT$ {{decision.additional_required_twd|money}}</dd></div><div><dt>Resulting authorized total</dt><dd>NT$ {{decision.resulting_total_twd|money}}</dd></div></dl>
+      {% else %}
+      <dl><div><dt>Approved budget</dt><dd>NT$ {{decision.budget_twd|money}}</dd></div>{% if decision.objective %}<div><dt>Scope</dt><dd>{{decision.objective}}</dd></div>{% endif %}{% if decision.completion_criteria %}<div><dt>Completion criteria</dt><dd>{{decision.completion_criteria|join(' · ')}}</dd></div>{% endif %}</dl>
+      {% endif %}
+      <nav class="decision-secondary">{% if snapshot.primary_response %}<a class="decision-audit" href="/runs/{{snapshot.primary_response.run.id}}">View audit</a>{% endif %}<a href="/operations/{{brief.operation.id}}">Open Operation</a></nav>
+      <div class="founder-decision-actions">
+        <details class="reject-decision"><summary class="button danger">{{'Stop' if decision.kind=='BUDGET_AUTHORIZATION' else 'Reject'}}</summary><form method="post" action="/operations/{{brief.operation.id}}/founder-decision"><input type="hidden" name="action" value="REJECT"><label>Reason <small>Optional</small></label><textarea name="reason" maxlength="300" rows="3"></textarea><div class="editor-actions"><button type="button" class="secondary" data-close-editor>Cancel</button><button class="danger">Confirm {{'Stop' if decision.kind=='BUDGET_AUTHORIZATION' else 'Reject'}}</button></div></form></details>
+        <details><summary class="button secondary">{{'Modify Budget' if decision.kind=='BUDGET_AUTHORIZATION' else 'Modify'}}</summary><form method="post" action="/operations/{{brief.operation.id}}/founder-decision"><input type="hidden" name="action" value="MODIFY">{% if decision.kind!='BUDGET_AUTHORIZATION' %}<label>Objective / authoritative constraint</label><textarea name="objective" rows="4">{{decision.objective}}</textarea>{% endif %}<label>{{'Additional authorization (not a new total)' if decision.kind=='BUDGET_AUTHORIZATION' else 'Approved budget'}}</label><input name="budget_twd" type="number" min="0.0001" step="0.0001" value="{{decision.additional_required_twd if decision.kind=='BUDGET_AUTHORIZATION' else '' if decision.waiting else decision.budget_twd}}"{% if decision.kind=='BUDGET_AUTHORIZATION' %} data-budget-additional data-current-total="{{decision.authorized_twd}}"{% endif %}>{% if decision.kind=='BUDGET_AUTHORIZATION' %}<small>Resulting authorized total: NT$ <output data-budget-result>{{decision.resulting_total_twd|money}}</output></small>{% endif %}{% if decision.kind!='BUDGET_AUTHORIZATION' %}<label>Completion criteria</label><textarea name="completion_criteria" rows="5">{{decision.completion_criteria|join('\n')}}</textarea>{% endif %}<label>Founder reason</label><textarea name="reason" maxlength="300" rows="3"></textarea><div class="editor-actions"><button type="button" class="secondary" data-close-editor>Cancel</button><button>{{'Authorize Additional Budget' if decision.kind=='BUDGET_AUTHORIZATION' else 'Approve with Changes'}}</button></div></form></details>
+        <form method="post" action="/operations/{{brief.operation.id}}/founder-decision"><input type="hidden" name="action" value="APPROVE"><button>{{'Authorize Additional Budget' if decision.kind=='BUDGET_AUTHORIZATION' else 'Approve'}}</button></form>
+      </div>
+    </section>
+    {% endif %}
+    {% if not brief.founder_decision %}
     <header class="briefing-title"><div><span class="eyebrow">OPERATION · {{brief.operation.status|replace('_',' ')}}</span><h1>{{brief.operation.title}}</h1><p>{{brief.operation.objective}}</p></div><a href="/operations/{{brief.operation.id}}">Open Operation</a></header>
     <div class="briefing-metrics">
       <article><small>PROGRESS</small><b>{{brief.done}} / {{brief.total}}</b><div class="meter"><i style="width:{{brief.progress_percent}}%"></i></div><span>{{brief.progress_percent}}%</span></article>
-      <article><small>AI SPEND · Spent / remaining</small><b>NT$ {{brief.cost_twd|money}} / NT$ {{brief.budget_twd|money}}</b><span>NT$ {{brief.remaining_twd|money}} remaining</span></article>
+      <article><small>LOCAL MODEL COST · Spent / remaining</small><b>NT$ {{brief.cost_twd|money}} / NT$ {{brief.budget_twd|money}}</b><span>NT$ {{brief.remaining_twd|money}} remaining</span></article>
       <article><small>CURRENT EXECUTION</small><b>{{brief.current_stage}}</b></article>
     </div>
-    <div class="team-activity"><header><h2>TEAM</h2><span>{{brief.team|length}}</span></header>
-      {% for row in brief.team %}<article><span><b>{{row.employee.name}}</b><small>{{row.employee.position.name if row.employee.position else 'Employee'}}</small></span><span>{% for task in row.tasks %}<b>{{task.title}}</b>{% if task.result %}<small>{{task.result}}</small>{% endif %}{% endfor %}</span><span><small>AI SPEND</small><b>NT$ {{row.cost_twd|money}}</b></span><strong class="work-state state-{{row.status|lower}}">{{row.status|replace('_',' ')}}</strong></article>{% endfor %}
+    <div class="team-activity"><header><h2>TEAM</h2></header>
+      {% for row in brief.team %}<article><span><b>{{row.employee.name}}</b><small>{{row.employee.position.name if row.employee.position else 'Employee'}}</small></span><span>{% for task in row.tasks %}<b>{{task.title}}</b>{% if task.result %}<small>{{task.result}}</small>{% endif %}{% endfor %}</span><span><small>LOCAL MODEL COST</small><b>NT$ {{row.cost_twd|money}}</b></span><strong class="work-state state-{{row.status|lower}}">{{row.status|replace('_',' ')}}</strong></article>{% endfor %}
     </div>
-    {% if brief.operation.status=='PLANNED' %}<section class="operation-proposal"><div><small>COMPLETION CRITERIA</small><ul>{% for criterion in brief.completion_criteria %}<li>{{criterion}}</li>{% endfor %}</ul></div><form method="post" action="/operations/{{brief.operation.id}}/approve"><button>Approve Operation</button><span hidden>Approve &amp; Run</span></form></section>
+    {% if brief.operation.status=='PLANNED' %}<section class="operation-proposal"><div><small>PLANNED WORK</small><ul>{% for row in brief.tasks %}<li>{{row.employee.name if row.employee else 'Unassigned'}} · {{row.title}}</li>{% endfor %}</ul></div><span hidden>Approve &amp; Run</span></section>
     {% elif brief.operation.status=='RUNNING' %}<span class="runner-state" data-operation-runner data-operation-id="{{brief.operation.id}}" data-completion-url="/command">WORKING</span>{% endif %}
     {% if brief.founder_attention %}<aside class="founder-attention"><span>FOUNDER ATTENTION · Founder decision required</span><p>{{brief.founder_attention}}</p></aside>{% endif %}
     {% if brief.verification %}<section class="goal-verification"><header><small>GOAL VERIFICATION</small><b>{{brief.verification.overall_status|replace('_',' ')}}</b></header>{% for criterion in brief.verification.criteria or [] %}<article><strong>{{criterion.status|replace('_',' ')}}</strong><span>{{criterion.criterion}}</span><p>{{criterion.reason}}</p></article>{% endfor %}{% if brief.verification.recommended_action %}<p>{{brief.verification.recommended_action}}</p>{% endif %}</section>{% endif %}
+    {% endif %}
   </section>
   {% elif snapshot.active %}
   <section class="operation-briefing" id="active-company-projects">
     {% for item in snapshot.active %}<article class="live-project"><header class="briefing-title"><div><span class="eyebrow">PROJECT · {{item.project.status|replace('_',' ')}}</span><h1>{{item.project.name}}</h1><p>{{item.project.objective}}</p></div><a href="/projects/{{item.project.id}}">Open Project</a></header>
-      <div class="briefing-metrics"><article><small>PROGRESS</small><b>{{item.done}} / {{item.total}}</b></article><article><small>TEAM</small><b>{{item.team|length}}</b></article><article><small>AI SPEND</small><b>NT$ {{item.cost|money}}</b></article><article><small>CURRENT EXECUTION</small><b>{{item.active_tasks[0].title if item.active_tasks else item.project.next_milestone or '—'}}</b></article></div>
+      <div class="briefing-metrics"><article><small>PROGRESS</small><b>{{item.done}} / {{item.total}}</b></article><article><small>TEAM</small><b>{{item.team|length}}</b></article><article><small>LOCAL MODEL COST</small><b>NT$ {{item.cost|money}}</b></article><article><small>CURRENT EXECUTION</small><b>{{item.active_tasks[0].title if item.active_tasks else item.project.next_milestone or '—'}}</b></article></div>
       <div class="team-activity">{% for task in item.tasks %}<article><span><b>{{task.assigned_employee.name if task.assigned_employee else 'Unassigned'}}</b></span><span><b>{{task.title}}</b>{% if task.result_summary %}<small>{{task.result_summary}}</small>{% endif %}</span><strong class="work-state state-{{task.status|lower}}">{{task.status}}</strong></article>{% endfor %}</div>
     </article>{% endfor %}
   </section>
@@ -40,18 +63,19 @@
   <section class="operation-briefing completed-briefing">
     <header class="briefing-title"><div><span class="eyebrow">COMPLETED</span><h1>{{complete.result.headline or complete.operation.title}}</h1><p>{{complete.operation.objective}}</p></div><a href="/operations/{{complete.operation.id}}">Open Operation</a></header>
     {% if complete.result.summary %}<article class="completed-result"><small>EXECUTIVE RESULT</small><p>{{complete.result.summary}}</p>{% if complete.result.result %}<p>{{complete.result.result}}</p>{% endif %}</article>{% endif %}
-    <div class="briefing-metrics"><article><small>WORK</small><b>{{complete.done}} / {{complete.total}}</b></article><article><small>AI SPEND</small><b>NT$ {{complete.cost_twd|money}}</b></article><article><small>GOAL VERIFICATION</small><b>{{complete.verification.overall_status|replace('_',' ') if complete.verification else '—'}}</b></article></div>
-    <div class="team-activity">{% for row in complete.team %}<article><span><b>{{row.employee.name}}</b></span><span>{% for task in row.tasks %}<b>{{task.title}}</b>{% endfor %}</span><span><small>AI SPEND</small><b>NT$ {{row.cost_twd|money}}</b></span><strong class="work-state">{{row.status}}</strong></article>{% endfor %}</div>
+    <div class="briefing-metrics"><article><small>WORK</small><b>{{complete.done}} / {{complete.total}}</b></article><article><small>LOCAL MODEL COST</small><b>NT$ {{complete.cost_twd|money}}</b></article><article><small>GOAL VERIFICATION</small><b>{{complete.verification.overall_status|replace('_',' ') if complete.verification else '—'}}</b></article></div>
+    <div class="team-activity">{% for row in complete.team %}<article><span><b>{{row.employee.name}}</b></span><span>{% for task in row.tasks %}<b>{{task.title}}</b>{% endfor %}</span><span><small>LOCAL MODEL COST</small><b>NT$ {{row.cost_twd|money}}</b></span><strong class="work-state">{{row.status}}</strong></article>{% endfor %}</div>
     {% if complete.result.next_move %}<article class="persisted-next"><small>NEXT ACTION</small><p>{{complete.result.next_move}}</p></article>{% endif %}
   </section>
   {% endif %}
 
-  {% if snapshot.current_failure %}{% set run=snapshot.current_failure %}<aside class="attention-signal secondary-attention"><header><span>CURRENT REQUEST</span><b>{{run.failure_reason or run.status}}</b></header><article><div><b>{{run.user_request|truncate(100)}}</b><p>NT$ {{run.real_cost|money}}</p></div><div class="actions"><a href="/runs/{{run.id}}">Audit</a><form method="post" action="/command/failures/{{run.id}}/acknowledge"><button class="secondary">Acknowledge</button></form></div></article></aside>{% endif %}
+  {% if snapshot.current_failure %}{% set run=snapshot.current_failure %}<aside class="system-response failure-response"><header><span>INCOMPLETE RESPONSE</span><b>{{run.failure_reason or run.status}}</b></header><p>{{snapshot.current_failure_message}}</p><div class="actions"><a href="/runs/{{run.id}}">Audit</a><details><summary class="button secondary">Retry / recover</summary><form method="post" action="/command/failures/{{run.id}}/replace"><textarea name="request" required>{{run.user_request}}</textarea><button>Send replacement</button></form></details><form method="post" action="/command/failures/{{run.id}}/acknowledge"><button class="secondary">Acknowledge</button></form></div></aside>{% endif %}
   {% if snapshot.historical_failure_count %}<a class="history-attention" href="/company/runs">ATTENTION · {{snapshot.historical_failure_count}} historical request{{'' if snapshot.historical_failure_count==1 else 's'}}</a>{% endif %}
   {% if snapshot.attention and not brief %}<aside class="attention-signal secondary-attention"><header><span>FOUNDER ATTENTION · Needs you · Founder decision required</span><b>{{snapshot.attention|length}}</b></header>{% for item in snapshot.attention %}<article><div><b>{{item.title}}</b><p>{{item.summary}}</p></div><a href="{{item.href}}">Review</a></article>{% endfor %}</aside>{% endif %}
 
-  <form class="command-input ceo-composer" method="post"><textarea name="request" required rows="1" aria-label="Founder request"></textarea><button class="command-send" aria-label="Send to CEO">Send</button></form>
+  <form class="command-input ceo-composer" method="post" data-ceo-composer><textarea name="request" required rows="1" aria-label="Founder request"></textarea><button class="command-send" aria-label="Send to CEO">Send</button></form>
   {% if snapshot.conversation %}<details class="ceo-history"><summary>HISTORY <span>{{snapshot.conversation|length}}</span></summary><div class="conversation-log">{% for item in snapshot.conversation|reverse %}<article><span>{{item.founder|truncate(110)}}</span><b>{{item.mode or item.run.status}}</b><small>NT$ {{item.run.real_cost|money}}</small><a href="/runs/{{item.run.id}}">Audit</a></article>{% endfor %}</div></details>{% endif %}
 </main>
 {% if brief and brief.operation.status=='RUNNING' %}<script src="{{url_for('static',filename='operation-runner.js')}}"></script>{% endif %}
+<script src="{{url_for('static',filename='command-stage.js')}}"></script>
 {% endblock %}

@@ -1,0 +1,117 @@
+{% extends "hq_base.html" %}
+{% block title %}Models & Providers · Eason One{% endblock %}
+{% block body_class %}hq-models-page{% endblock %}
+{% block pulse %}<span class="hq-pulse-item"><i class="pulse-dot"></i>{{ snapshot.metrics.active }} ACTIVE</span><span class="hq-pulse-item">{{ snapshot.metrics.assigned }} ASSIGNED</span>{% endblock %}
+{% block content %}
+<section class="page-command-header compact-page-header">
+  <div>
+    <span class="hq-kicker">MODELS & PROVIDERS</span>
+    <h1>AI Core configurations, not Employee identities.</h1>
+    <p>Changing a model changes the execution core only. Gemini and Perplexity are available as API providers. Codex CLI is a local Engineering tool; Mock is test-only and is blocked in formal Missions.</p>
+  </div>
+  <button class="hq-button" type="button" data-model-create-toggle>ADD CONFIGURATION</button>
+</section>
+
+<section class="model-create-panel" data-model-create hidden>
+  <form method="post" action="/models">
+    <label>Label<input name="label" required></label>
+    <label>Provider<select name="provider_key" required><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option><option value="perplexity">Perplexity</option><option value="codex">Codex CLI (local tool)</option><option value="mock">Mock (tests only)</option></select></label>
+    <label>Model name<input name="model_name" required></label>
+    <label>Input price / 1M<input name="input_price_per_million" type="number" step="0.0001" min="0" required></label>
+    <label>Output price / 1M<input name="output_price_per_million" type="number" step="0.0001" min="0" required></label>
+    <label>Search/request reserve / call<input name="request_price_per_call" type="number" step="0.000001" min="0" value="0" required><small>Use Company currency. Required for formal hosted-web research (OpenAI Web Search or Perplexity/Sonar). Normal non-search OpenAI calls may use 0.</small></label>
+    <label>Currency<input name="currency" value="TWD" required></label>
+    <label>Max output tokens<input name="max_output_tokens" type="number" min="1" value="1200" required></label>
+    <button class="hq-button">CREATE CONFIGURATION</button>
+  </form>
+</section>
+
+<section class="model-config-list">
+  <header class="section-heading">
+    <div><span class="hq-kicker">CONFIGURATIONS</span><h2>Available execution cores</h2></div>
+    <b>{{ snapshot.rows|length }}</b>
+  </header>
+
+  {% for row in snapshot.rows %}
+    {% set lifecycle = 'ARCHIVED' if row.model.archived else 'READY' if row.model.active and row.health.healthy else 'NOT READY' if row.model.active else 'INACTIVE' %}
+    <article class="model-config-card {{ 'is-archived' if row.model.archived else '' }}">
+      <header>
+        <div>
+          <span>{{ row.model.provider_key|upper }}</span>
+          <h3>{{ row.model.label|english_ui('Model configuration') }}</h3>
+          <small>{{ row.model.model_name }}</small>
+        </div>
+        <b class="{{ 'is-ready' if lifecycle=='READY' else 'is-archived' if lifecycle=='ARCHIVED' else 'is-blocked' }}">{{ lifecycle }}</b>
+      </header>
+
+      <div class="model-lifecycle-note {{ 'warning' if row.model.archived and row.employees else '' }}">
+        {% if row.model.archived %}
+          <b>Historical configuration</b>
+          <p>This configuration is archived and cannot execute work until it is explicitly restored.</p>
+          {% if row.employees %}<small>{{ row.employees|length }} Employee(s) still reference it. Restore it or reassign those Employees before their next run.</small>{% endif %}
+        {% elif row.model.active and not row.health.healthy %}
+          <b>Provider is not ready</b>
+          <p>{{ row.health.summary }}</p>
+          {% if row.health.research_capable %}<small>Hosted web research: <b>{{ 'READY' if row.health.research_ready else 'BLOCKED' }}</b>{% if row.health.research_recovery %} · {{ row.health.research_recovery }}{% endif %}</small>{% endif %}
+          {% if row.health.recovery %}<small>{{ row.health.recovery }}</small>{% endif %}
+        {% elif not row.model.active %}
+          <b>Configuration is inactive</b>
+          <p>It is retained but will not be selected for new work until enabled.</p>
+        {% else %}
+          <b>Ready for execution</b>
+          <p>The configuration is active and its provider requirement is available.</p>
+        {% endif %}
+      </div>
+
+      <dl>
+        <div><dt>Assigned Employees</dt><dd>{{ row.employees|length }}</dd></div>
+        <div><dt>Runs</dt><dd>{{ row.runs }}</dd></div>
+        <div><dt>Input / 1M</dt><dd>{{ 'LOCAL TOOL' if row.model.provider_key=='codex' else row.model.currency ~ ' ' ~ row.model.input_price_per_million }}</dd></div>
+        <div><dt>Output / 1M</dt><dd>{{ 'CHATGPT CODEX USAGE' if row.model.provider_key=='codex' else row.model.currency ~ ' ' ~ row.model.output_price_per_million }}</dd></div>
+        <div><dt>Request / call</dt><dd>{{ '—' if row.model.provider_key in ['codex','mock'] else row.model.currency ~ ' ' ~ row.model.request_price_per_call }}</dd></div>
+        <div><dt>Output limit</dt><dd>{{ row.model.max_output_tokens }}</dd></div>
+        <div><dt>Status</dt><dd>{{ lifecycle }}</dd></div>
+      </dl>
+
+      {% if row.employees %}
+        <div class="model-assignees">
+          {% for employee in row.employees %}<a href="/headquarters/employees/{{ employee.id }}">{{ employee.name|english_ui('Employee') }}</a>{% endfor %}
+        </div>
+      {% endif %}
+
+      {% if not row.model.archived %}
+        <details>
+          <summary>EDIT CONFIGURATION</summary>
+          <form method="post" action="/models/{{ row.model.id }}/edit">
+            <label>Label<input name="label" value="{{ row.model.label|english_ui('Model configuration') }}" required></label>
+            <label>Model name<input name="model_name" value="{{ row.model.model_name }}" required></label>
+            <label>Input price / 1M<input name="input_price_per_million" value="{{ row.model.input_price_per_million }}" type="number" step="0.0001" required></label>
+            <label>Output price / 1M<input name="output_price_per_million" value="{{ row.model.output_price_per_million }}" type="number" step="0.0001" required></label>
+            <label>Search/request reserve / call<input name="request_price_per_call" value="{{ row.model.request_price_per_call }}" type="number" step="0.000001" min="0" required></label>
+            <label>Currency<input name="currency" value="{{ row.model.currency }}" required></label>
+            <label>Max output tokens<input name="max_output_tokens" value="{{ row.model.max_output_tokens }}" type="number" min="1" required></label>
+            <button class="hq-button secondary">SAVE</button>
+          </form>
+        </details>
+      {% else %}
+        <details>
+          <summary>VIEW ARCHIVED CONFIGURATION</summary>
+          <p class="model-archive-detail">Restore this record before editing or enabling it. Existing Run history remains attached to the same ModelConfig.</p>
+        </details>
+      {% endif %}
+
+      <div class="model-actions">
+        {% if row.model.archived %}
+          <form method="post" action="/models/{{ row.model.id }}/restore"><button class="hq-button">RESTORE CONFIGURATION</button></form>
+        {% else %}
+          <form method="post" action="/models/{{ row.model.id }}/toggle"><button class="hq-button secondary">{{ 'DISABLE' if row.model.active else 'ENABLE' }}</button></form>
+          <form method="post" action="/models/{{ row.model.id }}/archive"><button class="hq-button secondary">ARCHIVE</button></form>
+        {% endif %}
+      </div>
+    </article>
+  {% else %}
+    <div class="empty-inline">No model configuration is recorded.</div>
+  {% endfor %}
+</section>
+{% endblock %}
+{% block scripts %}<script>document.querySelector('[data-model-create-toggle]')?.addEventListener('click',()=>{const panel=document.querySelector('[data-model-create]');panel.hidden=!panel.hidden;});</script>{% endblock %}

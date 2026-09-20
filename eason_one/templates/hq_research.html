@@ -1,0 +1,174 @@
+{% extends "hq_base.html" %}
+{% block title %}Research Ledger · Eason One{% endblock %}
+{% block body_class %}hq-research-page{% endblock %}
+{% block pulse %}
+  <span class="hq-pulse-item"><i class="pulse-dot"></i>RESEARCH CAPTURE ACTIVE</span>
+  <span class="hq-pulse-item">{{ snapshot.metrics.provider_calls }} PROVIDER CALLS</span>
+  <span class="hq-pulse-item">CAPTURE {{ snapshot.capture.score }}%</span>
+{% endblock %}
+{% block content %}
+<section class="research-hero">
+  <div>
+    <span class="hq-kicker">LIVING RESEARCH LEDGER</span>
+    <h1>Every build decision can become evidence.</h1>
+    <p>This surface is generated only from persisted Eason One state. It does not call a model and it does not invent missing experiment data.</p>
+  </div>
+  <div class="research-actions">
+    <a class="hq-button" href="/headquarters/research/export.json">EXPORT FULL JSON</a>
+    <a class="hq-button secondary" href="/headquarters/research/runs.csv">EXPORT RUNS CSV</a>
+  </div>
+</section>
+
+<section class="research-vision-stage">
+  <article class="research-vision-north-star">
+    <span class="hq-kicker">RESEARCH NORTH STAR</span>
+    <h2>From AI assistant to accountable AI organization.</h2>
+    <p>{{ snapshot.vision.north_star }}</p>
+    <div class="research-question-list">
+      {% for question in snapshot.vision.research_questions %}<div><span>{{ loop.index }}</span><p>{{ question }}</p></div>{% endfor %}
+    </div>
+  </article>
+  <article class="research-feasibility-card">
+    <header><span class="hq-kicker">FEASIBILITY EVIDENCE</span><b>LIVE DATABASE</b></header>
+    {% for item in snapshot.vision.evidence %}
+      <div class="research-feasibility-row"><strong>{{ item.value }}</strong><div><b>{{ item.unit }}</b><span>{{ item.claim }}</span><small>{{ item.detail }}</small></div></div>
+    {% endfor %}
+  </article>
+</section>
+
+<section class="research-roadmap-section">
+  <header class="section-heading"><div><span class="hq-kicker">LEARNING → EVOLUTION → ECONOMY</span><h2>How accepted work changes the next Project.</h2></div><b>LEARNING V1.7 · RESEARCH DEPT V1</b></header>
+  <div class="research-roadmap-grid">
+    {% for item in snapshot.vision.evolution_loop %}
+      <article class="research-roadmap-card"><span>STEP {{ item.step }}</span><h3>{{ item.name }}</h3><p>{{ item.detail }}</p></article>
+    {% endfor %}
+  </div>
+  <div class="research-boundaries"><b>NON-NEGOTIABLE BOUNDARY</b><p>— Learning can change future choices only inside existing capability, authority, budget, and verification rules. A successful past result never grants a new permission by itself.</p></div>
+</section>
+
+<section class="research-roadmap-section behavioral-proof-section">
+  <header class="section-heading"><div><span class="hq-kicker">OBSERVED BEHAVIOR CHANGE</span><h2>Show the counterfactual, not just the memory table.</h2></div><b>DATABASE-DERIVED</b></header>
+  <div class="research-metric-grid compact">
+    <article><strong>{{ snapshot.vision.behavioral_proof.consumption.runs_with_canonical_memory }}</strong><span>Runs that consumed learning</span><small>{{ snapshot.vision.behavioral_proof.consumption.task_execution_runs }} execution · {{ snapshot.vision.behavioral_proof.consumption.task_review_runs }} review</small></article>
+    <article><strong>{{ snapshot.vision.behavioral_proof.staffing.staffing_decisions_with_evidence }}</strong><span>Staffing decisions with evidence</span><small>Persisted Team Formation selection records</small></article>
+    <article><strong>{{ snapshot.vision.behavioral_proof.staffing.counterfactual_behavior_changes }}</strong><span>Counterfactual staffing changes</span><small>Same eligible roster, different winner without learning</small></article>
+    <article><strong>{{ snapshot.vision.behavioral_proof.economy.offers_with_experience_premium }}</strong><span>Offers with skill premium</span><small>Accepted outcomes changed future EC quote</small></article>
+    <article><strong>{{ snapshot.vision.behavioral_proof.economy.total_experience_premium_ec }} EC</strong><span>Outcome-backed premium</span><small>Internal labor capital only</small></article>
+  </div>
+  <div class="behavior-proof-grid">
+    {% for item in snapshot.vision.behavioral_proof.consumption.examples %}
+      <article class="research-roadmap-card"><span>RUN #{{ item.run_id }} · {{ item.purpose }}</span><h3>{{ item.employee_name or ('EMP-' ~ item.employee_id) }} consumed {{ item.matched_records }} canonical record(s)</h3><p>Project #{{ item.project_id or '-' }} · Work #{{ item.work_id or '-' }}{% if item.required_capability %} · {{ item.required_capability }}{% endif %}</p><small>MEMORY → #{{ item.experience_record_ids|join(' · #') }}</small></article>
+    {% endfor %}
+    {% for item in snapshot.vision.behavioral_proof.staffing.examples %}
+      <article class="research-roadmap-card"><span>WORK #{{ item.work_id }}</span><h3>{{ item.selected_employee_name }} was selected</h3><p>{{ item.reason }}</p><small>NO-LEARNING COUNTERFACTUAL → {{ item.counterfactual.employee_name }}</small></article>
+    {% endfor %}
+    {% for item in snapshot.vision.behavioral_proof.economy.examples %}
+      <article class="research-roadmap-card"><span>OFFER #{{ item.offer_id }}</span><h3>{{ item.employee_name }} · +{{ item.experience_premium_ec }} EC</h3><p>Base {{ item.base_quote_ec }} EC → quoted {{ item.quote_ec }} EC because accepted outcome evidence changed compensation.</p></article>
+    {% endfor %}
+    {% if not snapshot.vision.behavioral_proof.consumption.examples and not snapshot.vision.behavioral_proof.staffing.examples and not snapshot.vision.behavioral_proof.economy.examples %}<div class="signal-empty">The mechanism is implemented, but this database does not yet contain persisted learning consumption or a counterfactual behavior change. A future fresh Project must create the first live proof.</div>{% endif %}
+  </div>
+  <div class="research-boundaries"><b>CAUSALITY RULE</b><p>— A learning-consumption row proves only that canonical experience reached a later Run context. A staffing behavior change is counted only when the same eligible roster would choose a different Employee after removing outcome-backed experience. An EC premium is counted only from the persisted offer quote breakdown.</p></div>
+</section>
+
+<section class="research-roadmap-section">
+  <header class="section-heading"><div><span class="hq-kicker">ORIGINAL EASON ONE TARGET</span><h2>What this research is trying to become.</h2></div><b>NOW → NEXT → LATER</b></header>
+  <div class="research-roadmap-grid">
+    {% for item in snapshot.vision.roadmap %}
+      <article class="research-roadmap-card status-{{ item.status|lower|replace(' ','-')|replace('/','-') }}"><span>{{ item.status }}</span><h3>{{ item.name }}</h3><p>{{ item.detail }}</p></article>
+    {% endfor %}
+  </div>
+  <div class="research-boundaries"><b>CURRENT BOUNDARIES</b>{% for item in snapshot.vision.boundaries %}<p>— {{ item }}</p>{% endfor %}</div>
+</section>
+
+<section class="research-metric-grid">
+  <article><strong>{{ snapshot.metrics.provider_calls }}</strong><span>Provider calls</span><small>{{ snapshot.metrics.successful_calls }} successful · {{ snapshot.metrics.failed_calls }} failed</small></article>
+  <article><strong>{{ '%.1f'|format(snapshot.metrics.first_pass_success_rate) }}%</strong><span>First-pass success</span><small>{{ snapshot.metrics.retry_calls }} retry calls</small></article>
+  <article><strong>{{ snapshot.metrics.total_tokens }}</strong><span>Total tokens</span><small>{{ snapshot.metrics.input_tokens }} input · {{ snapshot.metrics.output_tokens }} output</small></article>
+  <article><strong>NT$ {{ snapshot.metrics.real_cost|money }}</strong><span>Local model cost</span><small>{{ snapshot.metrics.truncations }} truncations</small></article>
+  <article><strong>{{ snapshot.capture.score }}%</strong><span>Capture completeness</span><small>Prompt, context, output hashes and cost reconciliation</small></article>
+  <article><strong>{{ snapshot.metrics.research_records }}</strong><span>Founder research records</span><small>Decisions, hypotheses, failures, fixes and experiments</small></article>
+  <article><strong>{{ snapshot.metrics.ceo_ux_interactions }}</strong><span>CEO UX interactions</span><small>Automatic first-useful and complete latency records</small></article>
+</section>
+
+{% if snapshot.capture.score < 100 %}
+<section class="hq-incident-banner">
+  <span>!</span>
+  <div><b>Historical capture is incomplete</b><p>Old runs may predate V0.7 hash and prompt-version capture. New runs will be recorded automatically.</p></div>
+  <div class="capture-gaps">
+    {% for key,value in snapshot.capture.missing.items() %}{% if value %}<span>{{ key|replace('_',' ') }} · {{ value }}</span>{% endif %}{% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<div class="research-layout">
+  <section class="research-main">
+    <section class="research-section">
+      <header class="section-heading"><div><span class="hq-kicker">PROMPT PERFORMANCE</span><h2>Versioned execution evidence</h2></div><b>{{ snapshot.prompt_versions|length }} VERSIONS</b></header>
+      <div class="research-table prompt-version-table">
+        <div class="research-row research-head"><span>Prompt version</span><span>Runs</span><span>Success</span><span>Failed</span><span>Tokens</span><span>Local cost</span></div>
+        {% for row in snapshot.prompt_versions %}
+          <div class="research-row"><span><b>{{ row.version }}</b></span><span>{{ row.runs }}</span><span>{{ row.success }}</span><span>{{ row.failed }}</span><span>{{ row.tokens }}</span><span>NT$ {{ row.cost|money }}</span></div>
+        {% else %}<div class="signal-empty">No provider-backed runs recorded.</div>{% endfor %}
+      </div>
+    </section>
+
+    <section class="research-section">
+      <header class="section-heading"><div><span class="hq-kicker">MEETING EXPERIMENT LEDGER</span><h2>Calls, retries, cost and outcome by room</h2></div><a class="section-link" href="/headquarters/meetings">OPEN MEETINGS →</a></header>
+      <div class="research-table meeting-ledger-table">
+        <div class="research-row research-head"><span>Meeting</span><span>Status</span><span>Calls</span><span>OK / Fail</span><span>Retries</span><span>Tokens</span><span>Local cost</span></div>
+        {% for row in snapshot.meetings %}
+          <a class="research-row" href="/headquarters/meetings/{{ row.meeting.id }}"><span><b>#{{ row.meeting.id }} · {{ row.meeting.title }}</b><small>{{ row.meeting.execution_profile }}</small></span><span>{{ row.meeting.status }}</span><span>{{ row.calls }}</span><span>{{ row.success }} / {{ row.failed }}</span><span>{{ row.retries }}</span><span>{{ row.tokens }}</span><span>NT$ {{ row.cost|money }}</span></a>
+        {% else %}<div class="signal-empty">No Meetings recorded.</div>{% endfor %}
+      </div>
+    </section>
+
+    <section class="research-section">
+      <header class="section-heading"><div><span class="hq-kicker">FAILURE-DRIVEN DEVELOPMENT</span><h2>Failures remain visible after fixes</h2></div><b>{{ snapshot.failures|length + snapshot.operation_failures|length + snapshot.meeting_failures|length }}</b></header>
+      <div class="failure-ledger">
+        {% for run in snapshot.failures %}
+          <a href="/headquarters/system/runs/{{ run.id }}"><span>RUN #{{ run.id }}</span><div><b>{{ run.failure_reason or 'FAILED EXECUTION' }}</b><p>{{ run.error_text or run.provider_stop_reason or 'No failure detail recorded.' }}</p></div><small>{{ run.provider_key_snapshot }} / {{ run.model_name_snapshot }}</small></a>
+        {% endfor %}
+        {% for step in snapshot.meeting_failures %}
+          <a href="/headquarters/meetings/{{ step.meeting_id }}"><span>MEETING STEP #{{ step.id }}</span><div><b>{{ step.kind }} · {{ step.status }}</b><p>{{ step.error_text or 'Failure retained for audit.' }}</p></div><small>Meeting #{{ step.meeting_id }}</small></a>
+        {% endfor %}
+        {% for step in snapshot.operation_failures %}
+          <a href="/headquarters/missions/{{ step.operation_id }}"><span>MISSION STEP #{{ step.id }}</span><div><b>{{ step.kind }} · {{ step.status }}</b><p>{{ step.error_text or 'Failure retained for audit.' }}</p></div><small>Mission #{{ step.operation_id }}</small></a>
+        {% endfor %}
+        {% if not snapshot.failures and not snapshot.operation_failures and not snapshot.meeting_failures %}<div class="signal-empty">No persisted failures.</div>{% endif %}
+      </div>
+    </section>
+
+    <section class="research-section">
+      <header class="section-heading"><div><span class="hq-kicker">FOUNDER EVIDENCE INDEX</span><h2>Explicit interpretations and experiment notes</h2></div><b>{{ snapshot.records|length }}</b></header>
+      <div class="research-records">
+        {% for record in snapshot.records %}
+          <article class="research-record type-{{ record.record_type|lower }}"><header><span>{{ record.record_key }}</span><b>{{ record.record_type }}</b><em>{{ record.status }}</em></header><h3>{{ record.title }}</h3><p>{{ record.summary }}</p><footer><span>{{ record.version_label or 'No version label' }}</span><span>{{ record.source_ref or 'Local Founder record' }}</span><time>{{ record.created_at }}</time></footer></article>
+        {% else %}<div class="signal-empty">No explicit Founder research records yet. Raw operational evidence is already available above.</div>{% endfor %}
+      </div>
+    </section>
+  </section>
+
+  <aside class="research-capture-panel">
+    <span class="hq-kicker">CAPTURE A RESEARCH RECORD</span>
+    <h2>Record the interpretation now.</h2>
+    <p>Use this for decisions, hypotheses, experiments, failures, fixes and evidence. Raw run data stays in the operational ledger.</p>
+    <form method="post" action="/headquarters/research/records" class="research-form">
+      <label>Type<select name="record_type" required>{% for item in snapshot.record_types %}<option>{{ item }}</option>{% endfor %}</select></label>
+      <label>Status<select name="status">{% for item in snapshot.record_statuses %}<option>{{ item }}</option>{% endfor %}</select></label>
+      <label>Title<input name="title" maxlength="220" required placeholder="What changed or what are we testing?"></label>
+      <label>Summary<textarea name="summary" maxlength="12000" required placeholder="Problem → change → evidence → result → next action"></textarea></label>
+      <label>Version<input name="version_label" placeholder="e.g. Headquarters V0.7"></label>
+      <label>Source reference<input name="source_ref" placeholder="Run #53, commit, screenshot, file or URL"></label>
+      <div class="research-link-grid">
+        <label>Project<select name="project_id"><option value="">—</option>{% for item in snapshot.projects %}<option value="{{ item.id }}">#{{ item.id }} {{ item.name }}</option>{% endfor %}</select></label>
+        <label>Mission<select name="operation_id"><option value="">—</option>{% for item in snapshot.operations %}<option value="{{ item.id }}">#{{ item.id }} {{ item.title }}</option>{% endfor %}</select></label>
+        <label>Task<select name="task_id"><option value="">—</option>{% for item in snapshot.tasks %}<option value="{{ item.id }}">#{{ item.id }} {{ item.title }}</option>{% endfor %}</select></label>
+        <label>Meeting<input name="meeting_id" type="number" min="1" placeholder="ID"></label>
+        <label>Agent Run<input name="agent_run_id" type="number" min="1" placeholder="ID"></label>
+      </div>
+      <details><summary>Experiment fields</summary><label>Baseline<input name="baseline" placeholder="Current method"></label><label>Treatment<input name="treatment" placeholder="Changed method"></label><label>Metric<input name="metric" placeholder="Cost, token, acceptance, correction rate…"></label><label>Result<input name="result" placeholder="Observed outcome"></label><label>Next action<input name="next_action" placeholder="Keep, modify, reject or retest"></label></details>
+      <button class="hq-button">CAPTURE RECORD</button>
+    </form>
+  </aside>
+</div>
+{% endblock %}

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#071018">
+  <title>CEO Line · Eason One</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='headquarters.css') }}">
+</head>
+<body class="mobile-ceo-body" id="top">
+  <div class="mobile-ceo-shell">
+    <header class="mobile-ceo-header">
+      <div><span class="mobile-brand-mark">E1</span><span><b>EASON ONE</b><small>CEO LINE · FOUNDER AWAY</small></span></div>
+      <a href="/headquarters">HQ</a>
+    </header>
+
+    <main>
+      <section class="mobile-ceo-presence">
+        <div class="ceo-orb mobile"><span></span></div>
+        <div><span class="hq-kicker">CEO AT HEADQUARTERS</span><h1>{{ snapshot.ceo_state|replace('_',' ') }}</h1><p>Call for a briefing. The company continues from persisted state after you leave this screen.</p></div>
+        <i class="mobile-live-dot"></i>
+      </section>
+
+      <form method="post" class="mobile-call-form">
+        <label for="mobile-request">Call the CEO</label>
+        <textarea id="mobile-request" name="request" required placeholder="How is the company? What is the Researcher doing? What happened in the Meeting?"></textarea>
+        <div><button name="mode" value="briefing">GET BRIEFING</button><button name="mode" value="command">ISSUE COMMAND</button></div>
+      </form>
+
+      {% if ceo_answer %}
+      <section class="mobile-ceo-answer">
+        <span class="hq-kicker">CEO REPORT{% if ceo_query %} · “{{ ceo_query|english_ui('Founder request') }}”{% endif %}</span>
+        <h2>{{ ceo_answer.title|english_ui('CEO report') }}</h2>
+        <p>{{ ceo_answer.summary|english_ui('The report is available in Headquarters.') }}</p>
+        {% if ceo_answer.facts %}<ul>{% for fact in ceo_answer.facts %}<li>{{ fact|english_ui('Recorded company fact') }}</li>{% endfor %}</ul>{% endif %}
+        {% if ceo_answer.href %}<a href="{{ ceo_answer.href }}">OPEN IN HEADQUARTERS →</a>{% endif %}
+      </section>
+      {% endif %}
+
+      <section class="mobile-section" id="missions">
+        <header><div><span class="hq-kicker">COMPANY NOW</span><h2>Priority Missions</h2></div><span>{{ snapshot.missions|length }}</span></header>
+        <div class="mobile-mission-list">
+          {% for mission in snapshot.missions %}
+            <a href="/headquarters/missions/{{ mission.operation.id }}">
+              <div><span>{{ mission.classification|replace('_',' ') }}</span><h3>{{ mission.operation.title|english_ui('Mission') }}</h3><p>{{ mission.summary|english_ui('The CEO is coordinating this Mission.') }}</p></div>
+              <aside><strong>{% if mission.show_progress_percent %}{{ mission.progress }}%{% else %}{{ mission.done }}/{{ mission.total }}{% endif %}</strong><small>{{ mission.stage|replace('_',' ') }}</small></aside>
+            </a>
+          {% else %}<div class="mobile-empty">No active Mission is recorded.</div>{% endfor %}
+        </div>
+      </section>
+
+      <section class="mobile-section" id="people">
+        <header><div><span class="hq-kicker">EMPLOYEE PROGRESS</span><h2>Who is working</h2></div><span>{{ snapshot.employees|length }}</span></header>
+        <div class="mobile-employee-list">
+          {% for row in snapshot.employees %}
+            <a href="/headquarters/employees/{{ row.employee.id }}">
+              <span class="person-avatar">{{ row.initials }}<i></i></span>
+              <span><b>{{ row.employee.name|english_ui('Employee') }}</b><small>{{ row.task.title|english_ui('Current specialist Task') if row.task else row.position|english_ui('Employee') }}</small></span>
+              <em class="state-{{ row.state|lower }}">{{ row.state_label }}</em>
+            </a>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="mobile-section">
+        <header><div><span class="hq-kicker">MEETING ROOM</span><h2>Observe from the road</h2></div><a href="/headquarters/meetings">ALL</a></header>
+        {% if snapshot.live_meeting %}
+          {% set live=snapshot.live_meeting %}
+          <a class="mobile-live-meeting" href="/headquarters/meetings/{{ live.meeting.id }}">
+            <span class="live-badge"><i></i>LIVE</span>
+            <h3>{{ live.meeting.title|english_ui('Company Meeting') }}</h3>
+            <p>{{ live.meeting.agenda|english_ui('The company is resolving an active issue.') }}</p>
+            <div class="meeting-avatar-stack">{% for participant in live.participants[:5] %}<span>{{ participant.initials }}</span>{% endfor %}</div>
+            <footer><span>Round {{ live.meeting.current_round }}/{{ live.meeting.max_rounds }}</span><b>OBSERVE →</b></footer>
+          </a>
+        {% elif snapshot.meetings %}
+          {% for meeting in snapshot.meetings[:3] %}<a class="mobile-quiet-meeting" href="/headquarters/meetings/{{ meeting.meeting.id }}"><span>{{ meeting.meeting.status|replace('_',' ') }}</span><b>{{ meeting.meeting.title|english_ui('Company Meeting') }}</b><small>{{ meeting.participants|length }} participants</small></a>{% endfor %}
+        {% else %}<div class="mobile-empty">No Meeting is open.</div>{% endif %}
+      </section>
+
+      <section class="mobile-section">
+        <header><div><span class="hq-kicker">HEADQUARTERS UPDATES</span><h2>What changed</h2></div></header>
+        <div class="mobile-update-list">
+          {% for item in snapshot.activity %}<a href="{{ item.href }}"><span>{{ item.kind[0] }}</span><div><b>{{ item.title|english_ui('Company update') }}</b><small>{{ item.detail|english_ui('Recorded state change') }}</small></div><time>{{ item.age }}</time></a>{% else %}<div class="mobile-empty">No recent activity.</div>{% endfor %}
+        </div>
+      </section>
+    </main>
+
+    <nav class="mobile-bottom-nav">
+      <a class="active" href="#top"><span>◉</span>CEO</a>
+      <a href="#missions"><span>M</span>Missions</a>
+      <a href="#people"><span>P</span>People</a>
+      <a href="/headquarters/meetings"><span>◎</span>Meetings</a>
+    </nav>
+  </div>
+  <script src="{{ url_for('static', filename='headquarters.js') }}"></script>
+</body>
+</html>

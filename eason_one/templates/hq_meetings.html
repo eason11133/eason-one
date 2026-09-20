@@ -1,0 +1,77 @@
+{% extends "hq_base.html" %}
+{% block title %}Meetings · Eason One{% endblock %}
+{% block body_class %}hq-meetings-page hq-scene-meetings{% endblock %}
+{% block pulse %}
+  <span class="hq-pulse-item"><i class="pulse-dot"></i>{{ snapshot.groups.live|length }} OPEN ROOMS</span>
+  <span class="hq-pulse-item">{{ snapshot.groups.planned|length }} PLANNED</span>
+  <span class="hq-pulse-item">{{ snapshot.groups.completed|length }} COMPLETED</span>
+{% endblock %}
+{% block content %}
+<section class="hq-room-heading">
+  <div><span class="hq-kicker">MEETING ROOMS</span><h1>See the people, the issue, and the decision forming in the room.</h1><p>Observe, join as Founder, intervene, stop the Meeting, and carry the conclusion back to its Mission.</p></div>
+  <button class="hq-button" type="button" data-meeting-create-toggle>OPEN A MEETING</button>
+</section>
+
+<section class="meeting-create-panel" data-meeting-create hidden>
+  <form method="post" action="/meetings" class="meeting-create-form">
+    <header><div><span class="hq-kicker">NEW MEETING</span><h2>Define the issue before opening the room.</h2></div><button type="button" class="hq-quiet-button" data-meeting-create-toggle>CLOSE</button></header>
+    <label>Title<input name="title" required placeholder="Integration review"></label>
+    <label>Purpose<textarea name="purpose" required placeholder="Why this Meeting is necessary"></textarea></label>
+    <label>Question<textarea name="meeting_question" required placeholder="The decision or disagreement to resolve"></textarea></label>
+    <label>Chair<select name="chair_employee_id" required>{% for employee in snapshot.employees %}<option value="{{ employee.id }}">{{ employee.name|english_ui('Employee') }}</option>{% endfor %}</select></label>
+    <label>Project<select name="project_id"><option value="">No Project</option>{% for project in snapshot.projects %}<option value="{{ project.id }}">{{ project.name|english_ui('Project') }}</option>{% endfor %}</select></label>
+    <fieldset><legend>Participants</legend>{% for employee in snapshot.employees %}<label class="check-line"><input type="checkbox" name="participant_ids" value="{{ employee.id }}">{{ employee.name|english_ui('Employee') }} · {{ employee.position.name|english_ui('Employee') }}</label>{% endfor %}</fieldset>
+    <label>Execution profile<select name="execution_profile">{% for key in snapshot.profiles %}<option value="{{ key }}">{{ key }}</option>{% endfor %}</select></label>
+    <input type="hidden" name="agenda" value="Founder-defined Meeting">
+    <button class="hq-button">CREATE MEETING</button>
+  </form>
+</section>
+
+{% macro room_scene(row, mode) %}
+<article class="meeting-world-card status-{{ 'historical' if row.historical else row.meeting.status|lower }}">
+  <div class="meeting-world-scene">
+    <header><span>{{ 'HISTORICAL' if row.historical else row.meeting.status|replace('_',' ') }}</span><em>ROUND {{ row.meeting.current_round }}/{{ row.meeting.max_rounds }}</em></header>
+    <div class="meeting-world-table">
+      <div><span>CURRENT ISSUE</span><b>{{ row.meeting.title|english_ui('Company Meeting') }}</b><small>{{ row.meeting.purpose|english_ui('Resolve the current company issue.') }}</small></div>
+    </div>
+    {% for participant in row.participants[:8] %}
+      <a class="meeting-world-seat seat-{{ loop.index }}" href="/headquarters/employees/{{ participant.employee.id }}" title="{{ participant.employee.name }}">
+        <span>{{ participant.initials }}</span><b>{{ participant.employee.name|english_ui('Employee') }}</b><small>{{ participant.employee.position.name|english_ui('Employee') }}</small>
+      </a>
+    {% endfor %}
+  </div>
+  <div class="meeting-world-brief">
+    <span class="hq-kicker">{{ 'LIVE ROOM' if mode=='live' else 'PLANNED ROOM' }}</span>
+    <h2>{{ row.meeting.title|english_ui('Company Meeting') }}</h2>
+    <p>{{ row.meeting.purpose|english_ui('Resolve the current company issue.') }}</p>
+    <dl>
+      <div><dt>Participants</dt><dd>{{ row.participants|length }}</dd></div>
+      <div><dt>Calls</dt><dd>{{ row.calls }}</dd></div>
+      <div><dt>Local cost</dt><dd>NT$ {{ row.cost|money }}</dd></div>
+    </dl>
+    {% if row.summary %}
+      <div class="meeting-summary-snapshot"><span>LIVE SUMMARY</span><p>{{ row.summary.get('agreement')|english_ui('No agreement recorded yet') if row.summary.get('agreement') else row.summary.get('current_topic')|english_ui('Discussion has not started') if row.summary.get('current_topic') else 'Discussion has not started.' }}</p></div>
+    {% endif %}
+    <a class="hq-button" href="/headquarters/meetings/{{ row.meeting.id }}">ENTER MEETING ROOM</a>
+  </div>
+</article>
+{% endmacro %}
+
+<section class="meeting-world-section" id="open">
+  <header class="section-heading"><div><span class="hq-kicker">OPEN ROOMS</span><h2>Live, paused, or waiting for Founder.</h2></div><b>{{ snapshot.groups.live|length }}</b></header>
+  {% if snapshot.groups.live %}<div class="meeting-world-list">{% for row in snapshot.groups.live %}{{ room_scene(row,'live') }}{% endfor %}</div>{% else %}<div class="meeting-state-empty">No room is currently live.</div>{% endif %}
+</section>
+
+<section class="meeting-world-section" id="planned">
+  <header class="section-heading"><div><span class="hq-kicker">PLANNED</span><h2>Rooms prepared but not started.</h2></div><b>{{ snapshot.groups.planned|length }}</b></header>
+  {% if snapshot.groups.planned %}<div class="meeting-world-list">{% for row in snapshot.groups.planned %}{{ room_scene(row,'planned') }}{% endfor %}</div>{% else %}<div class="meeting-state-empty">No planned Meeting is waiting.</div>{% endif %}
+</section>
+
+<section class="meeting-history-section" id="history">
+  <header class="section-heading"><div><span class="hq-kicker">MEETING HISTORY</span><h2>Completed and terminated discussions.</h2></div><b>{{ snapshot.groups.completed|length }}</b></header>
+  <div class="meeting-history-list">
+    {% for row in snapshot.groups.completed %}<a href="/headquarters/meetings/{{ row.meeting.id }}"><span>{{ 'HISTORICAL' if row.historical else row.meeting.status|replace('_',' ') }}</span><div><b>{{ row.meeting.title|english_ui('Company Meeting') }}</b><small>{{ row.meeting.purpose|english_ui('Recorded Meeting') }}</small></div><em>{{ row.participants|length }} PEOPLE</em></a>{% else %}<div class="meeting-state-empty">No completed Meeting has been recorded.</div>{% endfor %}
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script>document.querySelectorAll('[data-meeting-create-toggle]').forEach(b=>b.addEventListener('click',()=>{const p=document.querySelector('[data-meeting-create]');p.hidden=!p.hidden;}));</script>{% endblock %}

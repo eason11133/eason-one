@@ -1,0 +1,81 @@
+{% extends "hq_base.html" %}
+{% block title %}Run #{{ snapshot.run.id }} · Eason One{% endblock %}
+{% block body_class %}hq-run-page{% endblock %}
+{% block pulse %}
+  <a class="hq-pulse-item" href="/headquarters/system/runs">← SYSTEM RUNS</a>
+  <span class="hq-pulse-item state-{{ snapshot.run.status|lower }}"><i class="pulse-dot"></i>{{ snapshot.run.status }}</span>
+  {% if snapshot.run.retry_of_run_id %}<a class="hq-pulse-item" href="/headquarters/system/runs/{{ snapshot.run.retry_of_run_id }}">RETRY OF #{{ snapshot.run.retry_of_run_id }}</a>{% endif %}
+{% endblock %}
+{% block content %}
+<section class="run-detail-header">
+  <div>
+    <span class="hq-kicker">AGENT RUN #{{ snapshot.run.id }}</span>
+    <h1>{{ snapshot.run.purpose|english_ui('Execution record') }}</h1>
+    <p>{{ snapshot.employee.name|english_ui('Unknown Employee') if snapshot.employee else 'Unknown Employee' }} · {{ snapshot.run.provider_key_snapshot }} / {{ snapshot.run.model_name_snapshot }}</p>
+  </div>
+  <div>
+    <span><small>Input</small><b>{{ snapshot.run.input_tokens or 0 }}</b></span>
+    <span><small>Output</small><b>{{ snapshot.run.output_tokens or 0 }}</b></span>
+    <span><small>{{ 'Planning cost' if snapshot.cost_scope == 'PLANNING' else 'Cost' }}</small><b>NT$ {{ snapshot.run.real_cost|money }}</b></span>
+    <span><small>Run latency</small><b>{{ snapshot.duration_ms if snapshot.duration_ms is not none else 'Not recorded' }}{% if snapshot.duration_ms is not none %} ms{% endif %}</b></span>
+  </div>
+</section>
+
+<section class="run-context-grid">
+  <article><span>Mission</span><b>{% if snapshot.operation %}<a href="/headquarters/missions/{{ snapshot.operation.id }}">#{{ snapshot.operation.id }} · {{ snapshot.operation.title|english_ui('Mission') }}</a>{% else %}No Operation{% endif %}</b></article>
+  <article><span>Task</span><b>{{ snapshot.task.title|english_ui('No Task') if snapshot.task else 'No Task' }}</b></article>
+  <article><span>Meeting</span><b>{{ snapshot.meeting.title|english_ui('No Meeting') if snapshot.meeting else 'No Meeting' }}</b></article>
+  <article><span>Validation</span><b>{{ snapshot.run.structured_validation_status or 'Not recorded' }}</b></article>
+</section>
+
+<section class="run-research-contract">
+  <div><span>Prompt version</span><b>{{ snapshot.run.prompt_version or 'UNVERSIONED HISTORICAL RUN' }}</b></div>
+  <div><span>Prompt hash</span><code>{{ snapshot.run.prompt_hash or 'Not captured' }}</code></div>
+  <div><span>Context hash</span><code>{{ snapshot.run.context_hash or 'Not captured' }}</code></div>
+  <div><span>Output hash</span><code>{{ snapshot.run.output_hash or 'Not captured' }}</code></div>
+  <div><span>Retry lineage</span><b>{% if snapshot.run.retry_of_run_id %}Retry of Run #{{ snapshot.run.retry_of_run_id }}{% elif snapshot.run.replacement_run_id %}Replaced by Run #{{ snapshot.run.replacement_run_id }}{% else %}First attempt{% endif %}</b></div>
+  <div><span>Output ceiling</span><b>{{ snapshot.run.effective_max_output_tokens or 'Not recorded' }} tokens</b></div>
+  <div><span>Provider stop</span><b>{{ snapshot.run.provider_stop_reason or 'Normal / not recorded' }}</b></div>
+  <div><span>Cost scope</span><b>{{ snapshot.cost_scope }}{% if snapshot.cost_scope == 'PLANNING' %} · outside execution envelope{% endif %}</b></div>
+  <div><span>Resolution</span><b>{{ snapshot.run.resolution_status or 'Not required / unresolved' }}</b></div>
+</section>
+
+<div class="run-detail-columns">
+  <section><header><span class="hq-kicker">REQUEST</span><h2>What the Employee received</h2></header><pre>{{ snapshot.run.user_request|english_ui('No English request presentation is available.') }}</pre></section>
+  <section><header><span class="hq-kicker">RESULT</span><h2>What the runtime returned</h2></header><pre>{{ snapshot.run.raw_output|english_ui('No output was recorded.') }}</pre></section>
+</div>
+
+{% set provider_sources = (snapshot.run.context_composition_json or {}).get('provider_sources', []) %}
+{% if snapshot.run.used_tools_snapshot_json or provider_sources %}
+<section class="v017-panel">
+  <header><div><span class="hq-kicker">TOOLS & SOURCE EVIDENCE</span><h2>What this Employee actually used.</h2></div><span>{{ provider_sources|length }} source{{ '' if provider_sources|length == 1 else 's' }}</span></header>
+  {% if snapshot.run.used_tools_snapshot_json %}<p><b>Used tools:</b> {% for tool in snapshot.run.used_tools_snapshot_json %}{{ tool.type if tool is mapping else tool }}{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+  <div class="v017-work-list">
+    {% for source in provider_sources %}
+      <article><div><h3>{{ source.title or 'Provider-observed source' }}</h3><p>{{ source.url }}</p><small>{{ source.source or 'web' }}{% if source.date %} · {{ source.date }}{% elif source.last_updated %} · updated {{ source.last_updated }}{% endif %}</small></div></article>
+    {% else %}<div class="v017-empty compact"><b>No provider-observed external source was attached.</b></div>{% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<details class="hq-raw-audit" open>
+  <summary>Failure and provider audit</summary>
+  <dl>
+    <div><dt>Error</dt><dd>{{ snapshot.run.error_text|english_ui('None') if snapshot.run.error_text else 'None' }}</dd></div>
+    <div><dt>Failure reason</dt><dd>{{ snapshot.run.failure_reason or 'None' }}</dd></div>
+    <div><dt>Provider request</dt><dd>{{ snapshot.run.provider_request_id or 'Not recorded' }}</dd></div>
+    <div><dt>Provider response</dt><dd>{{ snapshot.run.provider_response_id or 'Not recorded' }}</dd></div>
+    <div><dt>Request fee snapshot</dt><dd>{{ snapshot.run.currency_snapshot }} {{ snapshot.run.request_price_snapshot or 0 }}</dd></div>
+    <div><dt>Resolution note</dt><dd>{{ snapshot.run.resolution_note or 'None' }}</dd></div>
+    <div><dt>Replacement run</dt><dd>{% if snapshot.run.replacement_run_id %}<a href="/headquarters/system/runs/{{ snapshot.run.replacement_run_id }}">Run #{{ snapshot.run.replacement_run_id }}</a>{% else %}None{% endif %}</dd></div>
+  </dl>
+</details>
+
+<details class="hq-raw-audit">
+  <summary>Prompt and context audit</summary>
+  <div class="run-detail-columns">
+    <section><header><span class="hq-kicker">SYSTEM PROMPT SNAPSHOT</span><h2>Exact instructions</h2></header><pre>{{ snapshot.run.system_prompt_snapshot }}</pre></section>
+    <section><header><span class="hq-kicker">CONTEXT SNAPSHOT</span><h2>Exact bounded context</h2></header><pre>{{ snapshot.run.context_snapshot }}</pre></section>
+  </div>
+</details>
+{% endblock %}
