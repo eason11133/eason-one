@@ -28,28 +28,26 @@ EASON ONE 不是 ERP，也不是「多個 AI 一起聊天」。它探索的是�
 - 失敗或重啟後，系統能不能從 durable truth 正確接續？
 - 哪些事情 Agent 可以自己做，哪些事情必須回到 Founder？
 
+## 我希望 EASON ONE 最後變成什麼
+
+我的目標不是做一個能一次回答很多問題的「超級 AI」，也不是追求完全無人監督。我想把 EASON ONE 做成一個**可以長期存在、持續承接真實目標的 AI 組織**。
+
+理想狀態是：
+
+- Founder 主要負責方向、權限邊界與關鍵決策，不必親自把每個目標拆成一連串操作。
+- CEO 能依照公司現在的狀態建立 Project、拆分 Work、安排順序與調度人力；能力或容量不足時，走 HR / HiringRequest，而不是硬塞工作。
+- AI Employees 有持久的身分、責任、記憶與工作容量，可以跨時間接續同一個組織中的工作，但不能因為模型能力更強就越過權限。
+- 系統追求的不是「看起來一直在跑」，而是工作真的執行、產物真的存在、結果真的驗證過；失敗可以恢復，process 重啟後也能從 durable truth 接續。
+- 隨著 Project 增加，系統能累積組織記憶、改善分工與後續判斷，而不是每一次都從零開始。
+
+長期來說，我希望 EASON ONE 不只是展示用的專題，而是我未來做產品、研究與經營 Eason Systems 時真的能使用的 operating layer：讓 AI 從一次性的工具，逐步變成**可管理、可追責、能合作的組織成員**。人仍然保留方向與關鍵決策權，但不必親自處理每一個執行細節。
+
 ## 系統架構
 
-```mermaid
-flowchart TD
-    F[Founder] --> C[CEO]
-    C --> P[Project]
-    P --> W[Work]
-    W --> E[Execution]
-    E --> A[Artifact]
-    A --> V[Verification]
-    V -->|accepted| R[Result]
-    V -->|failed / ambiguous| X[Recovery]
-    X --> W
+<p align="center">
+  <img src="docs/assets/eason-one-architecture.webp" alt="EASON ONE 系統架構圖" width="100%">
+</p>
 
-    C -. coordinate .-> EMP[AI Employees]
-    EMP -. own / execute .-> E
-
-    G[Governance] -. authority .-> C
-    G -. gates .-> W
-    B[Budget / Cost] -. reserve / settle .-> E
-    M[Memory / Learning] -. evidence-backed context .-> C
-```
 
 ### Founder-facing surface
 
