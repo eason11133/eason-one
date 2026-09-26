@@ -17,18 +17,18 @@
 
   <section class="v013-results-grid">
     {% for result in snapshot.results %}
-    <a class="v013-result-card verification-{{ result.verification|lower }}" href="{{ result.href }}"{% if result.deliverables|selectattr('available')|list %} target="_blank" rel="noopener"{% endif %}>
-      <header><span>{{ result.kind|replace('_',' ') }}</span><time>{{ result.age }}</time></header>
+    <a class="v013-result-card founder-result-card verification-{{ result.verification|lower }}" href="{{ result.readable_href or result.href }}">
+      <header><span>{{ result.project.name if result.project else 'Company Result' }}</span><time>{{ result.age }}</time></header>
       <div class="v013-result-meta">
-        <span>{{ result.project.name if result.project else 'Company' }}</span>
-        <span>{{ result.verification }}</span>
-        {% if result.employee %}<span>{{ result.employee.name }}</span>{% endif %}
-        {% if result.files %}<span>{{ result.files|length }} FILE{{ '' if result.files|length==1 else 'S' }}</span>{% endif %}
-        {% if result.checks %}<span>{{ result.checks|length }} CHECK{{ '' if result.checks|length==1 else 'S' }}</span>{% endif %}
+        <span class="result-verification-badge">{{ '已驗證 · VERIFIED' if result.verification == 'VALIDATED' else result.verification }}</span>
+        <span>PROJECT #{{ result.project.id }}</span>
+        {% if result.deliverable_count %}<span>{{ result.deliverable_count }} DELIVERABLE{{ '' if result.deliverable_count==1 else 'S' }}</span>{% endif %}
       </div>
       <h2>{{ result.title }}</h2>
       <p>{{ result.summary }}</p>
-      <footer>{% if result.deliverables|selectattr('available')|list %}OPEN DELIVERABLE →{% elif result.readable %}READ RESULT →{% else %}VIEW EVIDENCE →{% endif %}</footer>
+      {% if result.criteria_total %}<div class="founder-result-proof"><span>驗證</span><b>{{ result.criteria_satisfied }} / {{ result.criteria_total }} criteria passed</b></div>{% endif %}
+      {% if result.team_names %}<div class="founder-result-team"><span>負責</span><b>{{ result.team_names|join(' → ') }}</b></div>{% endif %}
+      <footer>OPEN RESULT →</footer>
     </a>
     {% else %}
     <div class="v013-board-empty">

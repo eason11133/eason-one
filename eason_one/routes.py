@@ -677,6 +677,10 @@ def headquarters_artifact(version_id):
         abort(404)
     run = version.execution
     verification_rows = VerificationRecord.query.filter_by(artifact_version_id=version.id).order_by(VerificationRecord.id).all()
+    project_results = __import__(
+        "eason_one.services.project_company", fromlist=["_result_rows"]
+    )._result_rows(version.artifact.project, 24)
+    result = next((row for row in project_results if row.get("artifact_version_id") == version.id), None)
     return render_template(
         "hq_artifact.html",
         version=version,
@@ -688,6 +692,7 @@ def headquarters_artifact(version_id):
         readable=readable,
         verifications=verification_rows,
         deliverables=artifact_service.deliverable_targets(version),
+        result=result,
     )
 
 

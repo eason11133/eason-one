@@ -19,7 +19,7 @@
       <span>COMPANY NOW</span>
       <b data-project-state-label>{{ card.state|replace('_',' ') }}</b>
       <p data-project-state-detail>{{ card.state_detail }}</p>
-      {% if snapshot.attention %}<em>FOUNDER ACTION REQUIRED</em>{% elif card.state == 'RESULT_READY' %}<em>RESULT READY FOR YOU</em>{% else %}<em>NO FOUNDER ACTION REQUIRED</em>{% endif %}
+      {% if snapshot.attention %}<em>FOUNDER ACTION REQUIRED</em>{% elif card.state == 'RESULT_READY' %}<em>RESULT READY FOR YOU</em>{% else %}<em>目前不需要你的操作 · NO FOUNDER ACTION REQUIRED</em>{% endif %}
     </aside>
   </header>
 
@@ -44,6 +44,7 @@
           {% endif %}
         </div>
         <div class="project-focus-next"><span>NEXT</span><b>{{ focus.founder_next }}</b></div>
+        {% if focus.technical_reason %}<small class="project-technical-reason">Technical reason · {{ focus.technical_reason }}</small>{% endif %}
       {% elif card.state == 'RESULT_READY' %}
         <div class="project-focus-status state-result_ready">RESULT READY</div>
         <h2>The company finished the governed work.</h2>
@@ -54,11 +55,9 @@
         <p>{{ card.state_detail }}</p>
       {% endif %}
     </div>
-    <div class="project-founder-v2-money">
-      <article><span>PROJECT CAP</span><b>{% if snapshot.cost_breakdown.budget_limit is not none %}NT$ {{ snapshot.cost_breakdown.budget_limit|money }}{% else %}—{% endif %}</b></article>
-      <article><span>AUTHORITY USED</span><b>{% if snapshot.cost_breakdown.execution_authority_used is not none %}NT$ {{ snapshot.cost_breakdown.execution_authority_used|money }}{% else %}—{% endif %}</b></article>
-        <article><span>EXECUTION AUTHORITY LEFT</span><b>{% if snapshot.cost_breakdown.remaining is not none %}NT$ {{ snapshot.cost_breakdown.remaining|money }}{% else %}—{% endif %}</b></article>
-      <article><span>OBSERVED MODEL COST</span><b>NT$ {{ snapshot.cost_breakdown.observed_model_cost|money }}</b><small>includes costs outside the execution envelope when applicable</small></article>
+    <div class="project-founder-v2-money founder-budget-summary">
+      <article><span>預算 · BUDGET</span><b>{% if snapshot.cost_breakdown.execution_authority_used is not none and snapshot.cost_breakdown.budget_limit is not none %}NT$ {{ snapshot.cost_breakdown.execution_authority_used|money }} / {{ snapshot.cost_breakdown.budget_limit|money }} 已使用{% else %}—{% endif %}</b><small>Project execution authority</small></article>
+      <article><span>實際模型成本 · MODEL COST</span><b>NT$ {{ snapshot.cost_breakdown.observed_model_cost|money }}</b><small>完整 authority / accounting 差異在下方 Technical details</small></article>
     </div>
   </section>
 
@@ -111,7 +110,7 @@
         </section>
       {% endfor %}
     </div>
-    <p class="presentation-truth-note">Projected only from persisted Work, WorkDependency, Execution and verification truth. No fake activity.</p>
+    <p class="presentation-truth-note">Only the current effective path is shown here. Persisted previous attempts remain in Technical details.</p>
   </section>
   {% endif %}
 
@@ -130,16 +129,27 @@
   {% endif %}
 
   <details class="project-founder-v2-details">
-    <summary>Project details & audit</summary>
+    <summary>Technical details & audit</summary>
     <div class="project-founder-v2-details-grid">
       <section class="v017-panel">
-        <header><div><span class="hq-kicker">WORK DETAILS</span><h2>Durable commitments.</h2></div><span>{{ card.done }}/{{ card.total }} closed</span></header>
+        <header><div><span class="hq-kicker">OPERATIONAL DETAIL</span><h2>Current Work commitments.</h2></div><span>{{ snapshot.current_works|length }} CURRENT</span></header>
         <div class="v017-work-list">
-          {% for row in snapshot.works if not row.is_management %}
+          {% for row in snapshot.current_works %}
             <article class="state-{{ row.founder_state|lower }} presentation-work-row"><div class="v017-work-state"><i></i><span>{{ row.founder_state|replace('_',' ') }}</span></div><div><h3>{{ row.work.title }}</h3><p>{{ row.founder_detail }}</p><small>{{ row.employee.name if row.employee else 'Unassigned' }}{% if row.required_capabilities %} · {{ row.required_capabilities|join(' + ') }}{% endif %}</small>{% if row.latest_run %}<a class="presentation-audit-link" href="/headquarters/system/runs/{{ row.latest_run.id }}">RUN AUDIT →</a>{% endif %}</div></article>
           {% endfor %}
         </div>
       </section>
+
+      {% if snapshot.previous_attempts %}
+      <section class="v017-panel project-previous-attempts">
+        <header><div><span class="hq-kicker">PREVIOUS ATTEMPTS / HISTORY</span><h2>Retained, but no longer current.</h2></div><span>{{ snapshot.previous_attempts|length }}</span></header>
+        <div class="v017-work-list">
+          {% for row in snapshot.previous_attempts %}
+          <article class="state-{{ row.founder_state|lower }} presentation-work-row"><div class="v017-work-state"><i></i><span>{{ row.founder_state|replace('_',' ') }}</span></div><div><h3>{{ row.work.title }}</h3><p>{{ row.founder_detail }}</p>{% if row.latest_run %}<a class="presentation-audit-link" href="/headquarters/system/runs/{{ row.latest_run.id }}">RUN AUDIT →</a>{% endif %}</div></article>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
 
       <section class="v017-panel project-cost-truth">
         <header><div><span class="hq-kicker">COST TRUTH</span><h2>Billing vs execution authority.</h2></div><a href="/headquarters/finance">FINANCE →</a></header>

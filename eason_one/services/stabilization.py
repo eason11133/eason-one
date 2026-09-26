@@ -246,7 +246,10 @@ def global_runtime_snapshot(*, include_validation: bool = False) -> dict[str, An
     is_vnext = __import__(
         "eason_one.services.core_v018", fromlist=["is_v018_operation"]
     ).is_v018_operation(operation)
-    active = bool(run or (work and work.state in {"EXECUTING", "VERIFYING"}))
+    # v0.20 Work state is durable scheduling/ownership truth; only a RUNNING
+    # AgentRun proves that execution is live. A stale EXECUTING row after a
+    # failed-safe Run must never animate Founder surfaces as WORKING.
+    active = bool(run) if is_vnext else bool(run or (work and work.state in {"EXECUTING", "VERIFYING"}))
     phase, phase_label, next_phase = _founder_phase(live.get("phase"), getattr(work, "state", None))
     raw_action = live.get("current_action") or live.get("detail") or getattr(work, "purpose", None) or "Working on the approved outcome"
     return {
@@ -272,4 +275,3 @@ def global_runtime_snapshot(*, include_validation: bool = False) -> dict[str, An
         "updated_at": _iso(getattr(work, "updated_at", None) or operation.updated_at),
         "runtime_health": health,
     }
-

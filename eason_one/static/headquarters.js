@@ -770,7 +770,7 @@
     const stateLabel = qs('[data-project-state-label]', projectLiveRoot);
     const stateDetail = qs('[data-project-state-detail]', projectLiveRoot);
     const durableState = String(projectLiveRoot.dataset.projectState || '').toUpperCase();
-    const durableGovernanceStates = new Set(['NEEDS_YOU', 'RESULT_READY', 'COMPLETED', 'CANCELLED', 'FAILED', 'BLOCKED']);
+    const durableGovernanceStates = new Set(['WAITING', 'RECOVERING', 'PAUSED', 'VERIFYING', 'NEEDS_YOU', 'RESULT_READY', 'COMPLETED', 'CANCELLED', 'FAILED', 'BLOCKED']);
     let sawLiveWork = false;
     window.addEventListener('eason:runtime-focus', (event) => {
       const payload = event.detail || {};

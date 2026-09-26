@@ -16,16 +16,25 @@
 
   <header class="artifact-reader-hero">
     <div>
-      <span class="hq-kicker">{{ artifact.artifact_type|replace('_',' ') }} · ACCEPTED</span>
+      <span class="hq-kicker">WHAT WAS DELIVERED</span>
       <h1>{{ artifact.title }}</h1>
-      <p>{{ project.name }}</p>
+      <p>{{ project.name }} · Project #{{ project.id }}</p>
     </div>
     <div class="artifact-reader-integrity integrity-{{ readable.integrity|lower }}">
-      <span>CONTENT INTEGRITY</span>
-      <b>{{ readable.integrity }}</b>
-      <small>SHA-256 {{ readable.content_hash[:12] }}…</small>
+      <span>RESULT STATUS</span>
+      <b>{{ 'VERIFIED' if result and result.verification == 'VALIDATED' else 'ACCEPTED' }}</b>
+      <small>{{ 'Ready for Founder review' if result and result.current_project_result else 'Accepted company deliverable' }}</small>
     </div>
   </header>
+
+  {% if result %}
+  <section class="artifact-founder-summary">
+    <div><span>WHY EASON ONE ACCEPTED IT</span><b>Artifact produced{% if result.criteria_total %} · {{ result.criteria_satisfied }}/{{ result.criteria_total }} acceptance criteria passed{% endif %}</b><p>Verification is bound to this accepted Artifact version. Detailed evidence remains in Technical audit.</p></div>
+    <div><span>WHO CONTRIBUTED</span><b>{{ result.team_names|join(' → ') if result.team_names else (employee.name if employee else 'Company team') }}</b></div>
+    <div><span>COST</span><b>{% if result.cost_twd is not none %}NT$ {{ result.cost_twd|money }}{% else %}See Project Finance{% endif %}</b></div>
+    <div><span>NEXT / OUTCOME</span><b>{{ 'Awaiting Founder acceptance' if result.current_project_result else 'Available to downstream Work' }}</b></div>
+  </section>
+  {% endif %}
 
   <section class="artifact-reader-facts">
     <div><span>Produced by</span><b>{{ employee.name if employee else 'Company' }}</b></div>
@@ -77,7 +86,7 @@
   {% endif %}
 
   <details class="artifact-reader-audit">
-    <summary>ENGINEERING / AUDIT DETAILS</summary>
+    <summary>TECHNICAL AUDIT</summary>
     <div class="artifact-reader-audit-grid">
       <div><span>Artifact</span><b>#{{ artifact.id }}</b></div>
       <div><span>Version</span><b>#{{ version.id }} · v{{ version.version }}</b></div>

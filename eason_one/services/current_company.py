@@ -247,12 +247,42 @@ def failure_groups():
     failures = AgentRun.query.filter(
         AgentRun.status == "FAILED", AgentRun.resolution_status.is_(None)
     ).order_by(AgentRun.started_at.desc()).all()
+    project_ids = {run.project_id for run in failures if run.project_id}
+    work_ids = {run.work_id for run in failures if run.work_id}
+    task_ids = {run.task_id for run in failures if run.task_id}
+    operation_ids = {run.operation_id for run in failures if run.operation_id}
+    meeting_ids = {run.meeting_id for run in failures if run.meeting_id}
+    projects = {row.id: row for row in Project.query.filter(Project.id.in_(project_ids)).all()} if project_ids else {}
+    works = {row.id: row for row in Work.query.filter(Work.id.in_(work_ids)).all()} if work_ids else {}
+    tasks = {row.id: row for row in Task.query.filter(Task.id.in_(task_ids)).all()} if task_ids else {}
+    operations = {row.id: row for row in Operation.query.filter(Operation.id.in_(operation_ids)).all()} if operation_ids else {}
+    meetings = {row.id: row for row in Meeting.query.filter(Meeting.id.in_(meeting_ids)).all()} if meeting_ids else {}
+
+    def blocks(run):
+        project = projects.get(run.project_id)
+        if project is not None and str(project.status or "").upper() in TERMINAL_PROJECT_STATUSES:
+            return False
+        work = works.get(run.work_id)
+        if work is not None:
+            work_project = projects.get(work.project_id)
+            if work_project is not None and str(work_project.status or "").upper() in TERMINAL_PROJECT_STATUSES:
+                return False
+            return work.state == "WAITING"
+        task = tasks.get(run.task_id)
+        if task and task.work_id is None and task.status == "BLOCKED":
+            return True
+        operation = operations.get(run.operation_id)
+        if operation and operation.status in {"WAITING_FOR_FOUNDER", "PAUSED"}:
+            return True
+        meeting = meetings.get(run.meeting_id)
+        return bool(meeting and meeting.status in {"PAUSED", "WAITING_FOR_FOUNDER", "FAILED"})
+
     for run in failures:
         key = (run.failure_reason or "EXECUTION_FAILED", run.purpose)
         groups[key].append(run)
     rows = []
     for key, runs in groups.items():
-        blocking = any(_run_blocks_current_work(run) for run in runs)
+        blocking = any(blocks(run) for run in runs)
         rows.append({
             "failure_type": key[0], "workflow": key[1], "runs": runs,
             "count": len(runs), "latest": runs[0],

@@ -465,6 +465,32 @@ def test_accepted_db_native_artifact_opens_readable_result_before_run_audit(ctx)
     assert result["href"] == result["readable_href"]
 
 
+def test_results_index_groups_supporting_artifacts_under_one_project_outcome(ctx):
+    from eason_one.services import artifacts as artifact_service
+    from eason_one.services.project_company import results_snapshot
+
+    operation, project, researcher, critic = _setup()
+    work = next(row for row in operation.works if row.work_type != "MANAGEMENT")
+    for index in range(2):
+        artifact = Artifact(
+            project_id=project.id, work_id=work.id,
+            artifact_type="RESEARCH_REPORT", title=f"Supporting brief {index + 1}",
+        )
+        db.session.add(artifact); db.session.flush()
+        content = f'{{"summary":"Evidence brief {index + 1}"}}'
+        db.session.add(ArtifactVersion(
+            artifact_id=artifact.id, version=1, producer_employee_id=researcher.id,
+            status="ACCEPTED", content_text=content,
+            content_hash=artifact_service._hash(content, None),
+        ))
+    db.session.commit()
+
+    project_rows = [row for row in results_snapshot()["results"] if row["project"].id == project.id]
+    assert len(project_rows) == 1
+    assert project_rows[0]["supporting_results"] == 1
+    assert project_rows[0]["team_names"] == [researcher.name]
+
+
 def test_readable_artifact_route_serves_only_accepted_hash_verified_live_content(app, client):
     from eason_one.services import artifacts as artifact_service
 
@@ -505,6 +531,9 @@ def test_readable_artifact_route_serves_only_accepted_hash_verified_live_content
     assert response.status_code == 200
     assert b"Strategy memo" in response.data
     assert b"Launch a seven-day validation." in response.data
+    assert b"WHAT WAS DELIVERED" in response.data
+    assert b"WHY EASON ONE ACCEPTED IT" in response.data
+    assert b"TECHNICAL AUDIT" in response.data
     assert client.get(f"/headquarters/artifacts/{submitted_id}").status_code == 404
 
     with app.app_context():

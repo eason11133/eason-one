@@ -2,7 +2,7 @@ from decimal import Decimal
 import json
 from sqlalchemy import func, or_
 from ..extensions import db
-from ..models import (AgentRun,CostEvent,Department,Employee,Meeting,MeetingParticipant,
+from ..models import (AgentRun,CostEvent,Department,Employee,Escalation,Meeting,MeetingParticipant,
   MeetingStep,Operation,Project,Proposal,Task,Work,WorkAssignment,WorkMessage,HiringRequest,TalentTemplate)
 from .company import get_company,spent,remaining
 from .meetings import usage as meeting_usage
@@ -497,9 +497,23 @@ def shell_snapshot():
     if not company: return {"ceo":None,"ceo_status":"OFFLINE",
       "total_spend":Decimal(0)}
     ceo=Employee.query.filter_by(slug="ceo").first()
-    projected=__import__(
-      "eason_one.services.current_company",fromlist=["projection"]).projection()
-    return {"ceo":ceo,"ceo_status":projected["ceo_state"],
+    # This context processor runs for every HTML response. It must not build the
+    # complete Company projection merely to paint the legacy sidebar status.
+    # The dedicated HQ page owns the detailed reliability/governance read model.
+    has_attention = db.session.query(Escalation.id).filter(
+      Escalation.resolved_at.is_(None)
+    ).first() is not None
+    has_live_execution = db.session.query(AgentRun.id).join(
+      Project, AgentRun.project_id == Project.id
+    ).filter(
+      Project.environment == "LIVE",
+      Project.status.in_(ACTIVE_PROJECT),
+      AgentRun.status.in_(["CREATED", "RUNNING"]),
+    ).first() is not None
+    ceo_status = "FOUNDER_ATTENTION" if has_attention else (
+      "WORKING" if has_live_execution else "AVAILABLE"
+    )
+    return {"ceo":ceo,"ceo_status":ceo_status,
       "total_spend":spent()}
 
 def work_snapshot():

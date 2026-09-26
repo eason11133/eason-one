@@ -2176,30 +2176,62 @@ def run_snapshot(run: AgentRun) -> dict[str, Any]:
 
 def finance_snapshot() -> dict[str, Any]:
     company = get_company()
-    view = current_company.projection()
-    events = CostEvent.query.order_by(CostEvent.created_at.desc(), CostEvent.id.desc()).limit(120).all()
+    events = CostEvent.query.order_by(CostEvent.created_at.desc(), CostEvent.id.desc()).limit(80).all()
+    run_ids = {row.agent_run_id for row in events if row.agent_run_id}
+    employee_ids = {row.employee_id for row in events if row.employee_id}
+    project_ids = {row.project_id for row in events if row.project_id}
+    operation_ids = {row.operation_id for row in events if row.operation_id}
+    runs = {row.id: row for row in AgentRun.query.filter(AgentRun.id.in_(run_ids)).all()} if run_ids else {}
+    employees = {row.id: row for row in Employee.query.filter(Employee.id.in_(employee_ids)).all()} if employee_ids else {}
+    projects = {row.id: row for row in Project.query.filter(Project.id.in_(project_ids)).all()} if project_ids else {}
+    operations = {row.id: row for row in Operation.query.filter(Operation.id.in_(operation_ids)).all()} if operation_ids else {}
     event_rows = []
     for event in events:
-        run = db.session.get(AgentRun, event.agent_run_id) if event.agent_run_id else None
+        run = runs.get(event.agent_run_id)
         cost_truth = (
             __import__("eason_one.services.costs", fromlist=["cost_truth_for_run"]).cost_truth_for_run(run)
             if run else {"kind": "LOCAL_LEDGER", "label": "Local cost ledger", "provider_billed_twd": None}
         )
         event_rows.append({
             "event": event,
-            "employee": db.session.get(Employee, event.employee_id) if event.employee_id else None,
-            "project": db.session.get(Project, event.project_id) if event.project_id else None,
-            "operation": db.session.get(Operation, event.operation_id) if event.operation_id else None,
+            "employee": employees.get(event.employee_id),
+            "project": projects.get(event.project_id),
+            "operation": operations.get(event.operation_id),
             "run": run,
             "cost_truth": cost_truth,
             "age": _age_label(event.created_at),
         })
-    missions = [mission_view(row["operation"], row["classification"]) for row in view["operations"]]
+    # Finance only needs envelope truth. Avoid building the complete operational
+    # projection (runtime, brain, reliability, staffing) for a ledger page.
+    terminal = {"COMPLETED", "FAILED", "TERMINATED_BY_FOUNDER", "SUPERSEDED", "CANCELLED"}
+    operation_rows = Operation.query.order_by(Operation.updated_at.desc()).all()
+    current_operations = [row for row in operation_rows if row.status not in terminal]
+    selected_operations = current_operations + [row for row in operation_rows if row.status in terminal][:8]
+    selected_ids = [row.id for row in selected_operations]
+    spend_by_operation = dict(db.session.query(
+        CostEvent.operation_id, func.coalesce(func.sum(CostEvent.real_cost_delta), 0)
+    ).filter(CostEvent.operation_id.in_(selected_ids)).group_by(CostEvent.operation_id).all()) if selected_ids else {}
+    missions = []
+    for operation in selected_operations:
+        is_terminal = operation.status in terminal or bool(operation.project and operation.project.status in {"COMPLETED", "CANCELLED", "FAILED"})
+        classification = "TERMINAL" if is_terminal else (
+            "WAITING_FOR_FOUNDER" if operation.status in {"PLANNED", "WAITING_FOR_FOUNDER"}
+            else "BLOCKED" if operation.status == "PAUSED" else "ACTIVE"
+        )
+        missions.append({
+            "operation": operation,
+            "project": operation.project,
+            "classification": classification,
+            "spent": _money(spend_by_operation.get(operation.id, 0)),
+            "budget": _money(operation.approved_budget_twd),
+        })
+    company_spent = __import__("eason_one.services.company", fromlist=["spent"]).spent()
+    company_remaining = __import__("eason_one.services.company", fromlist=["remaining"]).remaining()
     payroll = db.session.query(func.coalesce(func.sum(Employee.salary_credits_per_week), 0)).filter(Employee.active.is_(True)).scalar()
     return {
         "company": company,
-        "spent": _money(view["spent"]),
-        "remaining": _money(view["remaining"]),
+        "spent": _money(company_spent),
+        "remaining": _money(company_remaining),
         "limit": _money(company.real_budget_limit if company else 0),
         "missions": missions,
         "events": event_rows,
@@ -2215,9 +2247,11 @@ def finance_snapshot() -> dict[str, Any]:
 
 
 def system_snapshot() -> dict[str, Any]:
-    view = current_company.projection()
+    company = get_company()
+    provider_rows = current_company.provider_health()
+    failures = current_company.failure_groups()
     models = []
-    for health in view["provider_health"]:
+    for health in provider_rows:
         model = health["model"]
         models.append({
             **health,
@@ -2226,17 +2260,17 @@ def system_snapshot() -> dict[str, Any]:
         })
     latest = AgentRun.query.order_by(AgentRun.started_at.desc(), AgentRun.id.desc()).limit(8).all()
     return {
-        "company": view["company"],
-        "ceo_state": view["ceo_state"],
+        "company": company,
+        "ceo_state": "SYSTEM_FAILURE" if any(row.get("blocking") for row in failures) else "AVAILABLE",
         "providers": models,
-        "failures": view["failures"],
-        "reliability": _reliability_groups(view["failures"]),
+        "failures": failures,
+        "reliability": _reliability_groups(failures),
         "latest_runs": latest,
         "metrics": {
             "models": len(models),
             "healthy": sum(row["healthy"] for row in models),
-            "failures": sum(bool(row.get("blocking")) for row in view["failures"]),
-            "reliability": len(_reliability_groups(view["failures"])),
+            "failures": sum(bool(row.get("blocking")) for row in failures),
+            "reliability": len(_reliability_groups(failures)),
             "runs": AgentRun.query.count(),
         },
     }

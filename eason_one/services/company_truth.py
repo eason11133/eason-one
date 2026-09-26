@@ -25,6 +25,7 @@ from ..models import (
     WaitCondition,
     Work,
     WorkAssignment,
+    WorkDependency,
 )
 
 MEETING_ACTIVE = {
@@ -77,6 +78,29 @@ def project_snapshot(project: Project | int) -> dict:
     ]
 
     work_ids = [row.id for row in works]
+    latest_run_by_work = {}
+    if work_ids:
+        for run in AgentRun.query.filter(AgentRun.work_id.in_(work_ids)).order_by(AgentRun.id.desc()).all():
+            latest_run_by_work.setdefault(run.work_id, run)
+    missing_evidence_ids = {
+        work_id for work_id, run in latest_run_by_work.items()
+        if run.status == "FAILED" and run.failure_reason == "MISSING_EVIDENCE"
+    }
+    # A crash/restart may leave the Work row EXECUTING after the durable Run has
+    # already failed safe. Preserve that evidence as Founder-facing quiescence
+    # even if a recovery pass has temporarily lost the matching WaitCondition.
+    blocked_by_missing = set(missing_evidence_ids)
+    if blocked_by_missing:
+        dependencies = WorkDependency.query.filter(
+            WorkDependency.work_id.in_(work_ids), WorkDependency.depends_on_work_id.in_(work_ids)
+        ).all()
+        changed = True
+        while changed:
+            changed = False
+            for edge in dependencies:
+                if edge.depends_on_work_id in blocked_by_missing and edge.work_id not in blocked_by_missing:
+                    blocked_by_missing.add(edge.work_id)
+                    changed = True
     work_runtime = __import__("eason_one.services.work_runtime", fromlist=["open_gates"])
     # Read every durable gate, not merely the first gate per Work. A stale older
     # retry gate must not hide a newer AUTHORITY_EXHAUSTED/RECONCILIATION truth
@@ -212,6 +236,12 @@ def project_snapshot(project: Project | int) -> dict:
         # management AUTHORITY_EXHAUSTED wait after Founder rejects more
         # budget). Historical failed attempts remain audit evidence only.
         state, reason = _wait_state(hard_waits)
+    elif missing_evidence_ids and current_delivery and all(
+        row.id in blocked_by_missing or row.state in DELIVERY_TERMINAL | DELIVERY_FAILED
+        for row in current_delivery
+    ):
+        state = "WAITING"
+        reason = "BLOCKED_MISSING_EVIDENCE: current Work and its dependent path have no new verifiable evidence."
     elif any(row.state == "ABANDONED" for row in current_delivery) and not __import__(
         "eason_one.services.company_kernel", fromlist=["_has_active_delivery"]
     )._has_active_delivery(project):

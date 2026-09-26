@@ -76,6 +76,9 @@ def test_ceo_snapshot_is_deterministic_company_truth_not_provider_identity(ctx):
 
 
 def test_ceo_canonical_missing_evidence_gate_quiesces_without_replaying_healthy_runtime(ctx):
+    from eason_one.models import AgentRun
+    from eason_one.services import project_company
+
     project = core._project(("Credible purchase-intent evidence exists",))
     operation = core._operation(project)
     work = _work(project, operation, state="EXECUTING", title="Purchase intent research")
@@ -86,6 +89,9 @@ def test_ceo_canonical_missing_evidence_gate_quiesces_without_replaying_healthy_
     employee = ceo_operating.employee_capacity_view(
         Employee.query.filter_by(slug="researcher").one()
     )
+    run_count = AgentRun.query.filter_by(project_id=project.id).count()
+    first_card = project_company.project_card(project, include_results=False)
+    second_card = project_company.project_card(project, include_results=False)
 
     assert view["contract_evidence"]["state"] == "NOT_PROVEN"
     assert primary["type"] == "EVIDENCE"
@@ -95,9 +101,40 @@ def test_ceo_canonical_missing_evidence_gate_quiesces_without_replaying_healthy_
     assert employee["capacity"] == "AVAILABLE"
     assert employee["active_responsibilities"] == []
     assert employee["retained_responsibilities"][0]["work_id"] == work.id
+    assert first_card["state"] == "WAITING"
+    assert second_card["state"] == "WAITING"
+    assert "目前缺少可驗證的既有證據" in first_card["state_detail"]
+    assert "Technical: BLOCKED_MISSING_EVIDENCE" in first_card["state_detail"]
+    assert AgentRun.query.filter_by(project_id=project.id).count() == run_count
     assert not any(
         item["type"] == "EXECUTION" for item in view["blockers"]["all"]
     )
+
+
+def test_founder_project_surface_prefers_current_wait_over_previous_failure(ctx, client):
+    from eason_one.services import project_company
+
+    project = core._project(("Credible purchase-intent evidence exists",))
+    operation = core._operation(project)
+    failed = _work(project, operation, state="ABANDONED", title="Previous failed research")
+    current = _work(project, operation, state="EXECUTING", title="Reconcile current evidence")
+    _missing_evidence_gate(current)
+
+    snapshot = project_company.project_snapshot(project)
+    assert snapshot["card"]["state"] in {"WAITING", "RECOVERING"}
+    assert snapshot["card"]["state"] != "WORKING"
+    assert snapshot["focus_work"]["work"].id == current.id
+    assert failed.id in {row["work"].id for row in snapshot["previous_attempts"]}
+    assert failed.id not in {
+        row["work"].id for stage in snapshot["handoff"]["stages"] for row in stage["nodes"]
+    }
+
+    html = client.get(f"/headquarters/projects/{project.id}").get_data(as_text=True)
+    assert "Reconcile current evidence" in html
+    assert "目前缺少可驗證的既有證據" in html
+    assert "Technical details & audit" in html
+    assert html.index("CURRENT MOVE") < html.index("PREVIOUS ATTEMPTS / HISTORY")
+    assert "Previous failed research" in html[html.index("PREVIOUS ATTEMPTS / HISTORY"):]
 
 
 def test_evidence_review_exhaustion_requires_replan_until_exact_missing_basis_is_proven(ctx):

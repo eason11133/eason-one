@@ -64,6 +64,20 @@ def _short(value: str | None, limit: int = 180) -> str:
     return text[: max(0, limit - 1)].rstrip() + "…"
 
 
+def _founder_state_detail(state: str, reason: str | None) -> str:
+    """Translate durable engine truth without hiding its technical code."""
+    text = " ".join(str(reason or "").split())
+    if "BLOCKED_MISSING_EVIDENCE" in text or "persisted evidence is missing" in text.casefold():
+        return (
+            "目前缺少可驗證的既有證據，因此這個研究分支已停止；"
+            "它會保持等待，直到出現新的證據來源或新的受治理決策。 "
+            "Technical: BLOCKED_MISSING_EVIDENCE."
+        )
+    if not text:
+        return str(state or "IDLE").replace("_", " ").title()
+    return text
+
+
 def _money(value: Any) -> Decimal:
     return Decimal(value or 0)
 
@@ -510,10 +524,7 @@ def _result_rows(project: Project, limit: int = 8) -> list[dict[str, Any]]:
             "files": files,
             "checks": checks,
             "updated": task.completed_at or task.updated_at,
-            "href": (
-                f"/headquarters/system/runs/{run.id}"
-                if run else f"/headquarters/projects/{project.id}#results"
-            ),
+            "href": f"/headquarters/projects/{project.id}#results",
             "audit_href": (f"/headquarters/system/runs/{run.id}" if run else None),
             "deliverables": [],
         })
@@ -627,7 +638,7 @@ def project_card(project: Project, *, live_runs=None, open_meetings=None, attent
         done = truth["work_accepted"] + truth["work_cancelled"]
         blocked = truth["work_counts"].get("WAITING", 0)
         state = truth["state"]
-        state_detail = truth["reason"]
+        state_detail = _founder_state_detail(state, truth["reason"])
         progress = truth["progress"]
     else:
         if project.status == "COMPLETED":
@@ -1084,6 +1095,8 @@ def _pulse_work_status(work: Work, run: AgentRun | None, wait) -> str:
         # first execution. The original failed attempt remains available in
         # Run audit through retry_of_run_id / replacement_run_id.
         return "RECOVERING" if run.retry_of_run_id else "WORKING"
+    if run is not None and run.status == "FAILED" and run.failure_reason == "MISSING_EVIDENCE":
+        return "WAITING"
     if work.state in {"EXECUTING", "VERIFYING"}:
         return "WORKING"
     if work.state in {"READY", "WAITING"}:
@@ -1118,6 +1131,8 @@ def _pulse_next_step(work: Work, task: Task | None, status: str, wait) -> str:
         return _short(getattr(wait, "reason", None) or "Founder authority is required before the company can continue.", 150)
     if status == "RECOVERING":
         return "Runtime recovery owns the next action. Founder intervention is not required."
+    if status == "WAITING" and wait is None:
+        return "If new valid evidence appears, the company can continue; otherwise this Work remains safely paused."
     if work.state == "WAITING" and getattr(wait, "condition_type", None) == "DEPENDENCY":
         upstream = db.session.get(Work, getattr(wait, "target_work_id", None)) if getattr(wait, "target_work_id", None) else None
         return f"Waiting for {upstream.title} to be accepted." if upstream else _short(getattr(wait, "reason", None) or "Waiting on upstream Work.", 150)
@@ -1143,6 +1158,8 @@ def _pulse_work_detail(work: Work, run: AgentRun | None, effect: ExternalEffectA
         if run is not None and run.status == "RUNNING" and run.retry_of_run_id:
             return f"Automatic recovery attempt {max(2, int(run.attempt_number or 2))} is running. No Founder action is required."
         return _short(getattr(wait, "reason", None) or "Company Runtime is reconciling a recoverable failure. No Founder action is required.", 160)
+    if status == "WAITING" and run is not None and run.failure_reason == "MISSING_EVIDENCE":
+        return _founder_state_detail(status, "BLOCKED_MISSING_EVIDENCE")
     if run is not None:
         return _pulse_effect_label(effect) or "Execution is running."
     if work.state == "VERIFYING":
@@ -1150,7 +1167,7 @@ def _pulse_work_detail(work: Work, run: AgentRun | None, effect: ExternalEffectA
     if work.state == "READY":
         return "Queued for Company Runtime dispatch; no Founder action is required."
     if work.state == "WAITING":
-        return _short(getattr(wait, "reason", None) or "Waiting on a durable company dependency.", 160)
+        return _short(_founder_state_detail(status, getattr(wait, "reason", None) or "Waiting on a durable company dependency."), 220)
     return str(work.state or "IDLE").replace("_", " ").title()
 
 
@@ -1423,7 +1440,26 @@ def home_snapshot() -> dict[str, Any]:
     company = get_company()
     if not company:
         return {"company": None}
-    projects = _project_cards(include_completed=True, include_results=False)
+    # Headquarters is a present-tense surface. Closed Projects stay available
+    # in the registry/results pages and must not be fully projected on every HQ
+    # refresh.
+    projects = _project_cards(include_completed=False, include_results=False)
+    # Preserve the historical registry contract used by diagnostics without
+    # paying the cost of fully hydrating every closed Project on the HQ route.
+    # The homepage renders active_projects only; these compact rows remain
+    # available to read-model callers and link to the full Project audit page.
+    closed_projects = Project.query.filter(
+        Project.environment == "LIVE", Project.status.in_(PROJECT_TERMINAL | {"PAUSED"})
+    ).order_by(Project.updated_at.desc()).all()
+    projects.extend({
+        "project": project,
+        "state": "HISTORICAL",
+        "state_detail": project.current_state_summary or project.status,
+        "href": f"/headquarters/projects/{project.id}",
+        "attention": [],
+        "is_dormant_history": project.origin == "LEGACY",
+        "contract_integrity_error": None,
+    } for project in closed_projects)
     active = [row for row in projects if row["project"].status not in PROJECT_TERMINAL | {"PAUSED"} and not row.get("is_dormant_history")]
     attention = [item for row in active for item in row["attention"]]
     dialogue = __import__(
@@ -1461,21 +1497,41 @@ def home_snapshot() -> dict[str, Any]:
 
 def projects_snapshot() -> dict[str, Any]:
     company = get_company()
-    rows = _project_cards(include_completed=True) if company else []
-    current = [
-        row for row in rows
-        if row["project"].status not in PROJECT_TERMINAL | {"PAUSED"} and not row.get("is_dormant_history")
-    ]
-    modern_closed = [
-        row for row in rows
-        if row["project"].status in PROJECT_TERMINAL and not row.get("is_dormant_history")
-    ]
-    dormant = [row for row in rows if row.get("is_dormant_history")]
+    if not company:
+        return {"company": None, "ceo": None, "projects": [], "open": [], "current": [], "recently_completed": [], "archive": [], "completed": []}
+
+    projects = Project.query.filter_by(environment="LIVE").order_by(Project.updated_at.desc()).all()
+    open_projects = [row for row in projects if row.status not in PROJECT_TERMINAL | {"PAUSED"}]
+    closed_projects = [row for row in projects if row.status in PROJECT_TERMINAL]
+    paused_projects = [row for row in projects if row.status == "PAUSED"]
+
+    current = [project_card(row, include_results=False) for row in open_projects]
+    recent_projects = closed_projects[:6]
+    recently_completed = [project_card(row, include_results=True) for row in recent_projects]
+
+    def archive_card(project: Project) -> dict[str, Any]:
+        dormant = _project_is_dormant_history(project.id)
+        return {
+            "project": project,
+            "state": "HISTORICAL" if dormant else project.status,
+            "href": f"/headquarters/projects/{project.id}",
+            "updated_label": _age(project.updated_at),
+            "is_dormant_history": dormant,
+            "latest_result": None,
+            "current_direction": project.next_milestone or project.objective,
+        }
+
+    archive = [archive_card(row) for row in closed_projects[6:] + paused_projects]
+    dormant_recent = [row for row in recently_completed if row.get("is_dormant_history")]
+    if dormant_recent:
+        recently_completed = [row for row in recently_completed if not row.get("is_dormant_history")]
+        archive = [archive_card(row["project"]) for row in dormant_recent] + archive
+    rows = current + recently_completed + archive
+    modern_closed = recently_completed + [row for row in archive if not row.get("is_dormant_history")]
+    dormant = [row for row in archive if row.get("is_dormant_history")]
     # Keep the Founder registry useful: only a small recent set competes with
     # current company work. Older closed work and pre-v0.18 records stay fully
     # accessible in Development History instead of being deleted.
-    recently_completed = modern_closed[:6]
-    archive = modern_closed[6:] + dormant
     archive.sort(
         key=lambda row: _dt(row["project"].updated_at) or datetime.min.replace(tzinfo=timezone.utc),
         reverse=True,
@@ -1532,6 +1588,15 @@ def project_snapshot(project: Project) -> dict[str, Any]:
         "run_id": row.agent_run_id,
     } for row in messages]
     works = Work.query.filter_by(project_id=project.id).order_by(Work.id).all()
+    work_ids = [work.id for work in works]
+    runs_by_work: dict[int, list[AgentRun]] = defaultdict(list)
+    if work_ids:
+        for run in AgentRun.query.filter(AgentRun.work_id.in_(work_ids)).order_by(AgentRun.id.desc()).all():
+            runs_by_work[int(run.work_id)].append(run)
+    tasks_by_work: dict[int, Task] = {}
+    if work_ids:
+        for task in Task.query.filter(Task.work_id.in_(work_ids)).order_by(Task.id.desc()).all():
+            tasks_by_work.setdefault(int(task.work_id), task)
     work_rows = []
     for work in works:
         assignment = next((row for row in reversed(work.assignments) if row.ended_at is None), None)
@@ -1542,33 +1607,26 @@ def project_snapshot(project: Project) -> dict[str, Any]:
                 "eason_one.services.work_runtime", fromlist=["primary_gate"]
             ).primary_gate(work)
         )
-        latest_run = AgentRun.query.filter_by(work_id=work.id).order_by(AgentRun.id.desc()).first()
-        latest_execution_run = (
-            AgentRun.query.filter_by(work_id=work.id, purpose="TASK_EXECUTION")
-            .order_by(AgentRun.id.desc()).first()
-        )
-        latest_review_run = (
-            AgentRun.query.filter_by(work_id=work.id, purpose="TASK_REVIEW")
-            .order_by(AgentRun.id.desc()).first()
-        )
-        running_run = (
-            AgentRun.query.filter_by(work_id=work.id, status="RUNNING")
-            .order_by(AgentRun.id.desc()).first()
-        )
+        work_runs = runs_by_work.get(work.id, [])
+        latest_run = work_runs[0] if work_runs else None
+        latest_execution_run = next((run for run in work_runs if run.purpose == "TASK_EXECUTION"), None)
+        latest_review_run = next((run for run in work_runs if run.purpose == "TASK_REVIEW"), None)
+        running_run = next((run for run in work_runs if run.status == "RUNNING"), None)
         visible_run = running_run or latest_run
-        task = _pulse_task(work)
+        task = tasks_by_work.get(work.id)
         reviewer = getattr(task, "reviewer", None) if task is not None else None
+        status_run = running_run or latest_run
         founder_state = (
             "HISTORICAL"
             if card.get("is_dormant_history")
             else "DONE" if work.state == "ACCEPTED"
             else "CANCELLED" if work.state == "CANCELLED"
             else "FAILED" if work.state == "ABANDONED" and not wait
-            else _pulse_work_status(work, running_run, wait)
+            else _pulse_work_status(work, status_run, wait)
         )
         effect = _pulse_effect(running_run) if running_run is not None else None
         if founder_state in {"WORKING", "WAITING", "RECOVERING", "NEEDS_YOU"}:
-            founder_detail = _pulse_work_detail(work, running_run, effect, founder_state, wait)
+            founder_detail = _pulse_work_detail(work, status_run, effect, founder_state, wait)
             founder_next = _pulse_next_step(work, task, founder_state, wait)
         elif founder_state == "DONE":
             founder_detail = "Accepted company output is persisted and available to downstream Work."
@@ -1603,6 +1661,11 @@ def project_snapshot(project: Project) -> dict[str, Any]:
             "founder_state": founder_state,
             "founder_detail": founder_detail,
             "founder_next": founder_next,
+            "technical_reason": (
+                "BLOCKED_MISSING_EVIDENCE"
+                if latest_run is not None and latest_run.failure_reason == "MISSING_EVIDENCE"
+                else (str(getattr(wait, "issue_code", "") or "").split(":")[0] or None)
+            ),
             "retry_attempt": (int(running_run.attempt_number or 1) if running_run is not None and running_run.retry_of_run_id else None),
             "provider": (f"{visible_run.provider_key_snapshot} / {visible_run.model_name_snapshot}" if visible_run is not None else None),
             "execution_provider": (
@@ -1644,6 +1707,10 @@ def project_snapshot(project: Project) -> dict[str, Any]:
             for work_id in sorted(unresolved):
                 stage_by_id[work_id] = 0
             break
+    current_states = {"NEEDS_YOU", "RECOVERING", "WORKING", "WAITING"}
+    current_delivery_rows = [row for row in delivery_rows if row["founder_state"] in current_states]
+    current_ids = {row["work"].id for row in current_delivery_rows}
+    historical_delivery_rows = [row for row in delivery_rows if row["work"].id not in current_ids]
     handoff_stages = []
     for stage_index in sorted(set(stage_by_id.values())):
         nodes = []
@@ -1651,21 +1718,27 @@ def project_snapshot(project: Project) -> dict[str, Any]:
             if stage != stage_index:
                 continue
             row = by_id[work_id]
+            if work_id not in current_ids:
+                continue
             nodes.append({
                 **row,
                 "dependency_names": [by_id[dep]["work"].title for dep in dep_map.get(work_id, []) if dep in by_id],
             })
-        handoff_stages.append({"index": stage_index, "nodes": nodes})
+        if nodes:
+            handoff_stages.append({"index": stage_index, "nodes": nodes})
     handoff = {
         "stages": handoff_stages,
-        "node_count": len(delivery_rows),
-        "edge_count": sum(len(value) for value in dep_map.values()),
+        "node_count": len(current_delivery_rows),
+        "edge_count": sum(
+            1 for work_id, dependencies in dep_map.items() if work_id in current_ids
+            for dependency in dependencies if dependency in current_ids
+        ),
     }
-    focus_rank = {"NEEDS_YOU": 0, "RECOVERING": 1, "WORKING": 2, "FAILED": 3, "WAITING": 4, "DONE": 8, "CANCELLED": 9, "HISTORICAL": 10}
+    focus_rank = {"NEEDS_YOU": 0, "RECOVERING": 1, "WORKING": 2, "WAITING": 3}
     focus_work = next((row for row in sorted(
-        delivery_rows,
+        current_delivery_rows,
         key=lambda row: (focus_rank.get(row.get("founder_state"), 7), row["work"].id),
-    ) if row.get("founder_state") not in {"DONE", "CANCELLED", "HISTORICAL"}), None)
+    )), None)
     return {
         "company": get_company(),
         "ceo": Employee.query.filter_by(slug="ceo").first(),
@@ -1686,7 +1759,9 @@ def project_snapshot(project: Project) -> dict[str, Any]:
         "results": results,
         "decisions": decisions,
         "works": work_rows,
+        "current_works": current_delivery_rows,
         "handoff": handoff,
+        "previous_attempts": historical_delivery_rows,
         "focus_work": focus_work,
         "work_command": work_command_snapshot(project.id),
         "tasks": tasks,
@@ -1703,13 +1778,51 @@ def results_snapshot() -> dict[str, Any]:
     company = get_company()
     result_rows = []
     if company:
-        for project in Project.query.filter_by(environment="LIVE").order_by(Project.updated_at.desc()).all():
+        # Results is a bounded recent read model. Full Project/audit history is
+        # still preserved and accessible from each Project and System Runs.
+        Artifact = __import__("eason_one.models", fromlist=["Artifact"]).Artifact
+        candidate_ids = {
+            int(project_id) for (project_id,) in db.session.query(Artifact.project_id).distinct().all()
+            if project_id is not None
+        }
+        candidate_ids.update(
+            int(project_id) for (project_id,) in db.session.query(Task.project_id).filter(
+                Task.status == "DONE", Task.result_summary.isnot(None)
+            ).distinct().all() if project_id is not None
+        )
+        projects = (
+            Project.query.filter(Project.environment == "LIVE", Project.id.in_(candidate_ids))
+            .order_by(Project.updated_at.desc()).limit(16).all()
+            if candidate_ids else []
+        )
+        for project in projects:
             for row in _result_rows(project, 16):
                 row = dict(row)
                 row["project"] = project
                 result_rows.append(row)
     result_rows.sort(key=lambda row: _dt(row["updated"]) or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
-    return {"company": company, "results": result_rows[:80]}
+    # Founder Results is one outcome per Project. Individual accepted Artifacts
+    # remain reachable from Result detail and Project audit, but they do not
+    # compete as peer outcomes on the first screen.
+    grouped: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for row in result_rows:
+        grouped[row["project"].id].append(row)
+    outcomes = []
+    for rows in grouped.values():
+        primary = next((row for row in rows if row.get("current_project_result")), None)
+        primary = primary or next((row for row in rows if row.get("kind") == "PROJECT_RESULT"), None)
+        primary = primary or next((row for row in rows if row.get("readable") or row.get("deliverables")), None)
+        primary = primary or next((row for row in rows if row.get("verification") == "VALIDATED"), None) or rows[0]
+        primary = dict(primary)
+        primary["supporting_results"] = len(rows) - 1
+        primary["deliverable_count"] = sum(len(row.get("deliverables") or []) for row in rows)
+        if not primary.get("team_names"):
+            primary["team_names"] = list(dict.fromkeys(
+                row["employee"].name for row in rows if row.get("employee")
+            ))[:8]
+        outcomes.append(primary)
+    outcomes.sort(key=lambda row: _dt(row["updated"]) or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    return {"company": company, "results": outcomes[:24]}
 
 
 def preview_snapshot() -> dict[str, Any]:

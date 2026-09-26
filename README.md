@@ -88,6 +88,8 @@ Governance、預算、恢復與記憶不是最後才附加的功能，而是穿�
 
 較完整的閱讀地圖見 [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md)。建議閱讀順序：README → Architecture → Engineering → source / tests。
 
+正式展示前可依 [`docs/DEMO_GUIDE.md`](docs/DEMO_GUIDE.md) 的短流程檢查頁面、Project 狀態與產品邊界。
+
 ## 本機執行
 
 需求：Python 3.13 或更新版本。Windows PowerShell：
@@ -127,3 +129,4 @@ python -m pytest -q --basetemp=.pytest-eason-one-temp -p no:cacheprovider
 - [`docs/ENGINEERING.md`](docs/ENGINEERING.md)：真正遇到的工程難題、設計取捨與證據入口。
 - [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md)：source、tests、scripts 與文件導覽。
 - [`docs/V0.20-ENGINEERING-CONSTITUTION.md`](docs/V0.20-ENGINEERING-CONSTITUTION.md)：Company Core 的 release-blocking invariants。
+- [`docs/DEMO_GUIDE.md`](docs/DEMO_GUIDE.md)：第一階段正式展示順序、Project #22 狀態說法與 demo 邊界。
