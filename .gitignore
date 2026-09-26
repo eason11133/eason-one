@@ -23,6 +23,8 @@ instance/
 coverage.xml
 htmlcov/
 *.log
+*.tmp
+*.bak
 
 .eason-one-runtime/
 .eason-one-test-temp/
@@ -32,6 +34,13 @@ htmlcov/
 .eason-one-one-update-state/
 .s11-simulation*/
 dist/
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
 
 # Local installer / validation hand-off pointers and malformed temp roots.
 .*-backup-path.txt
