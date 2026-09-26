@@ -34,6 +34,7 @@ from ..models import (
     OperationStep,
     Project,
     Task,
+    Work,
     WorkMessage,
 )
 from . import command as command_service
@@ -186,6 +187,16 @@ def _employee_current_task(employee: Employee) -> Task | None:
 
 def employee_presence(employee: Employee) -> dict[str, Any]:
     current_task = _employee_current_task(employee)
+    capacity = __import__(
+        "eason_one.services.ceo_operating", fromlist=["employee_capacity_view"]
+    ).employee_capacity_view(employee)
+    responsibility = capacity.get("current_responsibility") or next(
+        iter(capacity.get("retained_responsibilities") or []), None
+    )
+    current_work = (
+        db.session.get(Work, int(responsibility["work_id"]))
+        if responsibility and responsibility.get("work_id") else None
+    )
     live_meeting = (
         Meeting.query.join(MeetingParticipant)
         .outerjoin(Project, Meeting.project_id == Project.id)
@@ -201,6 +212,13 @@ def employee_presence(employee: Employee) -> dict[str, Any]:
     status = command_service.employee_status(employee)
     if status == "IN MEETING":
         state = "IN_MEETING"
+    elif status == "WORKING":
+        state = "WORKING"
+    elif current_work is not None:
+        state = "WAITING" if (
+            responsibility in (capacity.get("retained_responsibilities") or [])
+            or current_work.state == "WAITING"
+        ) else "QUEUED"
     elif current_task:
         state = current_task.status
     elif employee.active:
@@ -213,7 +231,9 @@ def employee_presence(employee: Employee) -> dict[str, Any]:
         "state": state,
         "state_label": state.replace("_", " "),
         "task": current_task,
-        "project": current_task.project if current_task else None,
+        "work": current_work,
+        "current_activity": current_task.title if current_task else current_work.title if current_work else None,
+        "project": current_task.project if current_task else current_work.project if current_work else None,
         "meeting": live_meeting,
         "department": employee.department.name if employee.department else "CEO Office",
         "position": employee.position.name if employee.position else "Employee",

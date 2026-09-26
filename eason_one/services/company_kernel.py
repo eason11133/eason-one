@@ -863,6 +863,11 @@ def _eligible_works(max_parallelism: int = 4) -> list[Work]:
     engineer_selected = False
     per_operation: dict[int, int] = {}
     max_parallelism = max(1, min(int(max_parallelism or 1), 4))
+    running_employee_ids = {
+        int(employee_id) for (employee_id,) in db.session.query(AgentRun.employee_id).filter(
+            AgentRun.status == "RUNNING"
+        ).distinct().all()
+    }
 
     for work in candidates:
         if len(selected) >= max_parallelism:
@@ -893,6 +898,17 @@ def _eligible_works(max_parallelism: int = 4) -> list[Work]:
             continue
 
         owner_id = _dispatch_actor_id(work)
+        if owner_id is not None and owner_id in running_employee_ids:
+            continue
+        if owner_id is not None and work.work_type != "MANAGEMENT":
+            capacity = __import__(
+                "eason_one.services.ceo_operating", fromlist=["employee_capacity_view"]
+            ).employee_capacity_view(owner_id)
+            if capacity.get("assignment_conflict") or (
+                capacity.get("active_project_id") is not None
+                and int(capacity["active_project_id"]) != int(work.project_id)
+            ):
+                continue
         if owner_id is not None and owner_id in owners:
             continue
         owner = db.session.get(Employee, owner_id) if owner_id else None

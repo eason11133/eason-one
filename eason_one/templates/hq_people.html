@@ -40,7 +40,7 @@
         <div class="person-station-copy">
           <span>{{ row.position|english_ui('Employee') }}</span>
           <h3>{{ row.employee.name|english_ui('Employee') }}</h3>
-          <p>{{ row.task.title|english_ui('Current specialist task') if row.task else 'No active Task' }}</p>
+          <p>{{ row.current_activity|english_ui('Current specialist task') if row.current_activity else 'No active Work' }}</p>
         </div>
         <aside><b>{{ row.state_label }}</b><small>{{ row.last_update }}</small></aside>
       </a>

@@ -6,6 +6,7 @@ through canonical Team Formation. It must never create provider execution,
 Project TWD authority, new Work or new Employees.
 """
 from decimal import Decimal
+import pytest
 
 from eason_one.extensions import db
 from eason_one.models import CompanyEvent, Employee, Work, WorkAssignment
@@ -133,7 +134,10 @@ def test_founder_project_surface_prefers_current_wait_over_previous_failure(ctx,
     assert "Reconcile current evidence" in html
     assert "目前缺少可驗證的既有證據" in html
     assert "Technical details & audit" in html
-    assert html.index("CURRENT MOVE") < html.index("PREVIOUS ATTEMPTS / HISTORY")
+    assert "PROJECT TEAM" in html
+    assert "PROGRESS" in html
+    assert "NO ACTION NEEDED" in html
+    assert html.index("PROJECT TEAM") < html.index("PREVIOUS ATTEMPTS / HISTORY")
     assert "Previous failed research" in html[html.index("PREVIOUS ATTEMPTS / HISTORY"):]
 
 
@@ -744,6 +748,109 @@ def test_terminal_project_releases_employee_capacity_without_erasing_assignment_
     assert project_view["current_responsibilities"] == []
     assert WorkAssignment.query.filter_by(id=assignment.id).one().ended_at is None
     assert Work.query.get(work.id).state == "EXECUTING"
+
+
+def test_employee_capacity_groups_multiple_queued_works_by_one_active_project(ctx):
+    project = core._project(("Founder criterion",))
+    operation = core._operation(project)
+    first = _work(project, operation, state="EXECUTING", title="Current research")
+    second = _work(project, operation, state="READY", title="Queued evidence review")
+    researcher = Employee.query.filter_by(slug="researcher").one()
+
+    capacity = ceo_operating.employee_capacity_view(researcher)
+
+    assert capacity["capacity"] == "PRIMARY_ASSIGNED"
+    assert capacity["active_project_id"] == project.id
+    assert capacity["current_responsibility"]["work_id"] == first.id
+    assert [row["work_id"] for row in capacity["queued_responsibilities"]] == [second.id]
+
+
+def test_employee_capacity_exposes_cross_project_double_assignment_as_inconsistent(ctx):
+    first_project = core._project(("First criterion",))
+    second_project = core._project(("Second criterion",))
+    first = _work(first_project, core._operation(first_project), state="READY", title="First Project Work")
+    second = _work(second_project, core._operation(second_project), state="READY", title="Second Project Work")
+    researcher = Employee.query.filter_by(slug="researcher").one()
+
+    capacity = ceo_operating.employee_capacity_view(researcher)
+
+    assert capacity["capacity"] == "OVERCOMMITTED"
+    assert capacity["assignment_conflict"] is True
+    assert capacity["active_project_ids"] == [first_project.id, second_project.id]
+    assert {row["work_id"] for row in capacity["active_responsibilities"]} == {first.id, second.id}
+
+
+def test_reassignment_cannot_bind_employee_to_second_active_project(ctx):
+    first_project = core._project(("First criterion",))
+    _work(first_project, core._operation(first_project), state="READY", title="First Project Work")
+    second_project = core._project(("Second criterion",))
+    second_operation = core._operation(second_project)
+    employee = Employee.query.filter_by(slug="researcher").one()
+    unassigned = Work(
+        project_id=second_project.id,
+        operation_id=second_operation.id,
+        title="Second Project Work",
+        purpose="Produce decision-relevant evidence.",
+        expected_output="Evidence",
+        acceptance_criteria="Founder criterion",
+        state="READY",
+        work_type="DELIVERY",
+        priority="HIGH",
+        created_by_employee_id=Employee.query.filter_by(slug="ceo").one().id,
+        resource_ceiling_twd=Decimal("5"),
+        retry_limit=1,
+    )
+    db.session.add(unassigned)
+    db.session.commit()
+
+    with pytest.raises(ValueError, match="EMPLOYEE_ACTIVE_PROJECT_CONFLICT"):
+        work_runtime.reassign(
+            unassigned,
+            employee.id,
+            assigned_by_employee_id=Employee.query.filter_by(slug="ceo").one().id,
+            reason="Must respect Project capacity.",
+        )
+
+
+def test_founder_project_snapshot_projects_semantic_progress_and_employee_queue(ctx):
+    from eason_one.services import project_company
+
+    project = core._project(("Founder criterion",))
+    operation = core._operation(project)
+    current = _work(project, operation, state="EXECUTING", title="Reconcile market evidence")
+    queued = _work(project, operation, state="READY", title="Review evidence quality")
+    _missing_evidence_gate(current)
+
+    snapshot = project_company.project_snapshot(project)
+    researcher = next(row for row in snapshot["project_team"] if row["employee"].slug == "researcher")
+
+    assert snapshot["semantic_progress"]["current_phase"] == "Evidence"
+    assert snapshot["semantic_progress"]["show_percent"] is False
+    assert researcher["status"] == "WAITING"
+    assert researcher["current_work"].id == current.id
+    assert researcher["next_work"].id == queued.id
+    assert snapshot["founder_blocker"]
+    assert "BLOCKED_MISSING_EVIDENCE" not in snapshot["founder_blocker"]
+
+
+def test_project_team_and_hq_employee_presence_share_waiting_work_truth(ctx):
+    from eason_one.services import headquarters, project_company
+
+    project = core._project(("Founder criterion",))
+    operation = core._operation(project)
+    work = _work(project, operation, state="EXECUTING", title="Reconcile evidence")
+    _missing_evidence_gate(work)
+    employee = Employee.query.filter_by(slug="researcher").one()
+
+    project_view = project_company.project_snapshot(project)
+    team_row = next(row for row in project_view["project_team"] if row["employee"].id == employee.id)
+    hq_row = headquarters.employee_presence(employee)
+
+    assert team_row["status"] == "WAITING"
+    assert hq_row["state"] == "WAITING"
+    assert hq_row["project"].id == project.id
+    assert hq_row["work"].id == work.id
+    assert hq_row["current_activity"] == team_row["current_work"].title
 
 
 def test_project_closure_captures_authoritative_outcome_learning_and_contribution_without_mutation(ctx):

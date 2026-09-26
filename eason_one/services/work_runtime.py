@@ -818,6 +818,17 @@ def reassign(work: Work, employee_id: int, *, assigned_by_employee_id: int | Non
     employee = db.session.get(Employee, employee_id)
     if not employee or not employee.active:
         raise ValueError("Replacement Employee is not active")
+    if work.work_type != "MANAGEMENT":
+        capacity = __import__(
+            "eason_one.services.ceo_operating", fromlist=["employee_capacity_view"]
+        ).employee_capacity_view(employee)
+        if capacity.get("assignment_conflict") or (
+            capacity.get("active_project_id") is not None
+            and int(capacity["active_project_id"]) != int(work.project_id)
+        ):
+            raise ValueError(
+                f"EMPLOYEE_ACTIVE_PROJECT_CONFLICT:EMP-{employee.id}:PROJECT-{capacity.get('active_project_id')}"
+            )
 
     # Reassignment is company authority, not a loophole around the approved Work
     # capability contract.  Enforce only explicit governed capability truth here;

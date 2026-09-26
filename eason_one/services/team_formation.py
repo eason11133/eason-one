@@ -123,8 +123,9 @@ def employee_capabilities(employee: Employee) -> set[str]:
 
 def _active_workload(employee_id: int) -> int:
     Assignment = __import__("eason_one.models", fromlist=["WorkAssignment"]).WorkAssignment
-    return (
-        db.session.query(Assignment)
+    return int(
+        db.session.query(db.func.count(db.distinct(Work.project_id)))
+        .select_from(Assignment)
         .join(Work, Assignment.work_id == Work.id)
         .join(Project, Work.project_id == Project.id)
         .filter(
@@ -134,7 +135,20 @@ def _active_workload(employee_id: int) -> int:
             Project.status.in_(["PLANNING", "ACTIVE", "BLOCKED", "REVIEW"]),
             Work.state.in_(["READY", "EXECUTING", "VERIFYING", "WAITING"]),
         )
-        .count()
+        .scalar() or 0
+    )
+
+
+def _capacity_eligible_for_work(employee: Employee, work: Work) -> bool:
+    """An ordinary Employee may queue Work only inside one active Project."""
+    view = __import__(
+        "eason_one.services.ceo_operating", fromlist=["employee_capacity_view"]
+    ).employee_capacity_view(employee)
+    if view.get("capacity") == "AVAILABLE":
+        return True
+    return bool(
+        not view.get("assignment_conflict")
+        and int(view.get("active_project_id") or 0) == int(work.project_id)
     )
 
 
@@ -424,7 +438,7 @@ def validate_existing_employee_for_ready_work(
     ranked = _ranked_for_work(work, capability)
     available = [
         row for row in ranked
-        if operating.employee_capacity_view(row[5]).get("capacity") == "AVAILABLE"
+        if _capacity_eligible_for_work(row[5], work)
     ]
     if not available:
         return {"status": "STALE", "reason": "NO_AVAILABLE_ELIGIBLE_EMPLOYEE"}
@@ -956,13 +970,17 @@ def reconcile_work(work: Work) -> dict | None:
             fromlist=["select_department_specialist", "specialist_employees"],
         )
         candidate, delegation = department.select_department_specialist(work)
-        if candidate is not None and candidate.id != owner.id:
+        if (
+            candidate is not None
+            and candidate.id != owner.id
+            and _capacity_eligible_for_work(candidate, work)
+        ):
             specialist_ids = {
                 employee.id for employee in department.specialist_employees(active_only=True)
             }
             ranked = [
                 row for row in _ranked_for_work(work, capability)
-                if row[5].id in specialist_ids
+                if row[5].id in specialist_ids and _capacity_eligible_for_work(row[5], work)
             ]
             ceo = Employee.query.filter_by(slug="ceo", active=True).first()
             market_award = __import__(
@@ -1023,7 +1041,11 @@ def reconcile_work(work: Work) -> dict | None:
                 "manager_employee_id": owner.id, "capability": capability,
             }
 
-    if owner and owner.slug != "ceo" and capability in employee_capabilities(owner):
+    if (
+        owner and owner.slug != "ceo"
+        and capability in employee_capabilities(owner)
+        and _capacity_eligible_for_work(owner, work)
+    ):
         ranked = _ranked_for_work(work, capability)
         ceo = Employee.query.filter_by(slug="ceo", active=True).first()
         market_award = __import__(
@@ -1048,7 +1070,10 @@ def reconcile_work(work: Work) -> dict | None:
         })
         return {"status": "TEAM_MATCHED", "work_id": work.id, "employee_id": owner.id, "capability": capability}
 
-    ranked = _ranked_for_work(work, capability, exclude_employee_id=getattr(owner, "id", None))
+    ranked = [
+        row for row in _ranked_for_work(work, capability, exclude_employee_id=getattr(owner, "id", None))
+        if _capacity_eligible_for_work(row[5], work)
+    ]
     candidate = ranked[0][5] if ranked else None
     market_award = None
     if candidate:

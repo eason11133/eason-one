@@ -26,6 +26,7 @@ from ..extensions import db
 from ..models import (
     Artifact,
     ArtifactVersion,
+    AgentRun,
     CompanyEvent,
     CostEvent,
     Employee,
@@ -233,6 +234,11 @@ def employee_capacity_view(employee: Employee | int) -> dict:
             "primary_responsibility": None,
             "active_responsibilities": [],
             "retained_responsibilities": [],
+            "active_project_id": None,
+            "active_project_ids": [],
+            "current_responsibility": None,
+            "queued_responsibilities": [],
+            "assignment_conflict": False,
         }
 
     assignments = (
@@ -286,10 +292,26 @@ def employee_capacity_view(employee: Employee | int) -> dict:
     responsibilities = [assignment_view(row) for row in active_rows]
     retained = [assignment_view(row) for row in retained_rows]
 
+    running_work_ids = {
+        int(work_id) for (work_id,) in db.session.query(AgentRun.work_id).filter(
+            AgentRun.employee_id == employee.id,
+            AgentRun.status == "RUNNING",
+            AgentRun.work_id.isnot(None),
+        ).all()
+    }
+    state_rank = {"EXECUTING": 0, "VERIFYING": 1, "WAITING": 2, "READY": 3}
+    responsibilities.sort(key=lambda row: (
+        0 if row["work_id"] in running_work_ids else 1,
+        state_rank.get(str(row["work_state"] or "").upper(), 9),
+        row["assignment_id"],
+    ))
+    project_ids = sorted({int(row["project_id"]) for row in responsibilities})
+    conflict = len(project_ids) > 1
+
     if not responsibilities:
         capacity = "AVAILABLE"
         primary = None
-    elif len(responsibilities) > 1:
+    elif conflict:
         capacity = "OVERCOMMITTED"
         primary = responsibilities[0]
     else:
@@ -304,6 +326,11 @@ def employee_capacity_view(employee: Employee | int) -> dict:
         "primary_responsibility": primary,
         "active_responsibilities": responsibilities,
         "retained_responsibilities": retained,
+        "active_project_id": project_ids[0] if len(project_ids) == 1 else None,
+        "active_project_ids": project_ids,
+        "current_responsibility": primary,
+        "queued_responsibilities": responsibilities[1:] if primary else [],
+        "assignment_conflict": conflict,
     }
 
 

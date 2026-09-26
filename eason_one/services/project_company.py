@@ -1549,6 +1549,89 @@ def projects_snapshot() -> dict[str, Any]:
     }
 
 
+_FOUNDER_PHASES = ("Plan", "Research", "Evidence", "Review", "Decision", "Delivery")
+
+
+def _founder_phase_for_work(work: Work) -> str:
+    """Project one Work into a semantic phase without inventing a percentage."""
+    text = " ".join((work.title or "", work.purpose or "", work.expected_output or "")).casefold()
+    if any(word in text for word in ("evidence", "proof", "source", "reconcile", "validate")):
+        return "Evidence"
+    if any(word in text for word in ("review", "critic", "audit", "quality")):
+        return "Review"
+    if any(word in text for word in ("research", "market", "competitor", "investigat")):
+        return "Research"
+    if any(word in text for word in ("decision", "strategy", "recommend")):
+        return "Decision"
+    if any(word in text for word in ("deliver", "report", "brief", "release", "output")):
+        return "Delivery"
+    return "Plan"
+
+
+def _semantic_progress_projection(delivery_rows: list[dict], focus_work: dict | None) -> dict:
+    current_phase = _founder_phase_for_work(focus_work["work"]) if focus_work else (
+        "Delivery" if delivery_rows and all(row["work"].state == "ACCEPTED" for row in delivery_rows) else "Plan"
+    )
+    current_index = _FOUNDER_PHASES.index(current_phase)
+    reached = {
+        _founder_phase_for_work(row["work"])
+        for row in delivery_rows
+        if row["work"].state == "ACCEPTED"
+    }
+    phases = []
+    for index, label in enumerate(_FOUNDER_PHASES):
+        state = "CURRENT" if index == current_index else "DONE" if label in reached or index < current_index else "UPCOMING"
+        phases.append({"label": label, "state": state})
+    return {
+        "phases": phases,
+        "current_phase": current_phase,
+        "show_percent": False,
+        "basis": "CURRENT_EFFECTIVE_PLAN_PHASES",
+    }
+
+
+def _project_team_projection(
+    current_rows: list[dict], *, focus_work_id: int | None, stage_by_id: dict[int, int]
+) -> list[dict]:
+    grouped: dict[int, list[dict]] = defaultdict(list)
+    for row in current_rows:
+        employee = row.get("employee")
+        if employee is not None:
+            grouped[int(employee.id)].append(row)
+    status_rank = {"WORKING": 0, "RECOVERING": 1, "NEEDS_YOU": 2, "WAITING": 3}
+    result = []
+    focus_stage = stage_by_id.get(int(focus_work_id or 0), 0)
+    next_stage = min(
+        (stage for work_id, stage in stage_by_id.items() if stage > focus_stage),
+        default=None,
+    )
+    for employee_id, rows in grouped.items():
+        rows.sort(key=lambda row: (status_rank.get(row["founder_state"], 9), row["work"].id))
+        current = rows[0]
+        queued = [row for row in rows[1:] if row["work"].state in {"READY", "WAITING", "EXECUTING", "VERIFYING"}]
+        member_stage = min(stage_by_id.get(row["work"].id, focus_stage) for row in rows)
+        if current["founder_state"] == "WORKING":
+            status = "WORKING"
+        elif current["work"].id != focus_work_id and member_stage > focus_stage:
+            status = "UP NEXT" if member_stage == next_stage else "QUEUED"
+        elif current["founder_state"] in {"WAITING", "RECOVERING", "NEEDS_YOU"}:
+            status = "WAITING"
+        elif current["work"].state == "READY":
+            status = "UP NEXT"
+        else:
+            status = "QUEUED"
+        result.append({
+            "employee": current["employee"],
+            "status": status,
+            "current_work": current["work"],
+            "current_detail": current["founder_detail"],
+            "next_work": queued[0]["work"] if queued else None,
+            "work_count": len(rows),
+        })
+    result.sort(key=lambda row: ({"WORKING": 0, "WAITING": 1, "UP NEXT": 2, "QUEUED": 3}.get(row["status"], 9), row["employee"].id))
+    return result
+
+
 def project_snapshot(project: Project) -> dict[str, Any]:
     db.session.refresh(project)
     contract_read = __import__(
@@ -1739,6 +1822,26 @@ def project_snapshot(project: Project) -> dict[str, Any]:
         current_delivery_rows,
         key=lambda row: (focus_rank.get(row.get("founder_state"), 7), row["work"].id),
     )), None)
+    semantic_progress = _semantic_progress_projection(delivery_rows, focus_work)
+    project_team = _project_team_projection(
+        current_delivery_rows,
+        focus_work_id=focus_work["work"].id if focus_work else None,
+        stage_by_id=stage_by_id,
+    )
+    founder_blocker = None
+    if focus_work and focus_work["founder_state"] in {"WAITING", "RECOVERING"}:
+        founder_blocker = (
+            "缺少可驗證的新證據。"
+            if (
+                focus_work.get("technical_reason") == "BLOCKED_MISSING_EVIDENCE"
+                or "BLOCKED_MISSING_EVIDENCE" in str(focus_work.get("founder_detail") or "")
+            )
+            else focus_work["founder_detail"]
+        )
+    founder_next = focus_work["founder_next"] if focus_work else card.get("state_detail")
+    if founder_blocker == "缺少可驗證的新證據。":
+        sequence = [row["employee"].name for row in project_team]
+        founder_next = "等待新的有效證據" + (" → " + " → ".join(sequence) if sequence else "")
     return {
         "company": get_company(),
         "ceo": Employee.query.filter_by(slug="ceo").first(),
@@ -1763,6 +1866,10 @@ def project_snapshot(project: Project) -> dict[str, Any]:
         "handoff": handoff,
         "previous_attempts": historical_delivery_rows,
         "focus_work": focus_work,
+        "semantic_progress": semantic_progress,
+        "project_team": project_team,
+        "founder_blocker": founder_blocker,
+        "founder_next": founder_next,
         "work_command": work_command_snapshot(project.id),
         "tasks": tasks,
         "operations": operations,
