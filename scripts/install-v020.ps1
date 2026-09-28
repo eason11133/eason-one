@@ -13,8 +13,7 @@ $dbPath = Join-Path $TargetRoot "instance\eason_one.db"
 $ownedDirectories = @("eason_one", "docs", "scripts", "tests", ".github")
 $ownedFiles = @(
   "run.py", "pyproject.toml", "README.md", ".gitignore",
-  "INSTALL_V020_POWERSHELL.txt", "V020_CORE_REBUILD_HANDOFF.md",
-  "CODEX_HANDOFF_HEADQUARTERS.md"
+  "INSTALL_V020_POWERSHELL.txt"
 )
 
 
@@ -213,7 +212,7 @@ try {
   Write-Host "Installed Eason One v0.20.0 Company Core Rebuild." -ForegroundColor Green
   Write-Host "Rollback checkpoint: $backupRoot"
   Write-Host "Next engineering check: .\scripts\verify-v020.ps1"
-  Write-Host "Then run the required real Founder Product gate in V020_CORE_REBUILD_HANDOFF.md" -ForegroundColor Yellow
+  Write-Host "Then run the required real Founder Product gate in docs\history\releases\V020_CORE_REBUILD_HANDOFF.md" -ForegroundColor Yellow
 }
 catch {
   Write-Host "Installation failed: $($_.Exception.Message)" -ForegroundColor Red

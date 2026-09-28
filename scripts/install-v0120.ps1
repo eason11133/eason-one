@@ -17,12 +17,7 @@ $ownedFiles = @(
   "pyproject.toml",
   "README.md",
   ".gitignore",
-  "INSTALL_V0120_POWERSHELL.txt",
-  "CODEX_HANDOFF_HEADQUARTERS.md",
-  "eason-one-full-review.md",
-  "claude-anthropic-gate-review.md",
-  "REBUILD_V0120_SUMMARY.md",
-  "INSTALLER_HOTFIX_20260806.md"
+  "INSTALL_V0120_POWERSHELL.txt"
 )
 
 function Copy-RequiredFile {

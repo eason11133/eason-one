@@ -25,7 +25,16 @@ jobs:
       - name: Install project and test dependencies
         run: python -m pip install -e ".[test]"
 
-      - name: Run tests with coverage
+      - name: Compile Python source
+        run: python -m compileall -q eason_one scripts tests run.py
+
+      - name: Run Company Core audit
+        run: python scripts/audit_v020_core.py
+
+      - name: Run Governance audit
+        run: python scripts/audit_v020_governance.py
+
+      - name: Run full test suite with coverage
         run: python -m pytest --cov=eason_one --cov-report=xml:coverage.xml
 
       - name: Upload coverage to Codecov

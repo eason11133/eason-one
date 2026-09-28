@@ -10,7 +10,7 @@ if (-not $BackupRoot) {
 }
 if (-not $BackupRoot -or -not (Test-Path $BackupRoot)) { throw "v0.18 backup directory was not found." }
 $ownedDirectories = @("eason_one", "docs", "scripts", "tests", ".github")
-$ownedFiles = @("run.py", "pyproject.toml", "README.md", ".gitignore", "INSTALL_V018_POWERSHELL.txt", "V018_CORE_CUTOVER_HANDOFF.md", "CODEX_HANDOFF_HEADQUARTERS.md")
+$ownedFiles = @("run.py", "pyproject.toml", "README.md", ".gitignore", "INSTALL_V018_POWERSHELL.txt")
 foreach ($name in $ownedDirectories) {
   $current = Join-Path $TargetRoot $name
   if (Test-Path $current) { Remove-Item -LiteralPath $current -Recurse -Force }

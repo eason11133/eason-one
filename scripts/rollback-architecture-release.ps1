@@ -10,7 +10,7 @@ if (-not $BackupRoot) {
 }
 if (-not $BackupRoot -or -not (Test-Path $BackupRoot -PathType Container)) { throw "Architecture release rollback checkpoint not found." }
 $ownedDirectories = @("eason_one", "docs", "scripts", "tests", ".github")
-$ownedFiles = @("run.py", "pyproject.toml", "README.md", ".gitignore", "ARCHITECTURE_REVIEW.md", "BLOCKER_INVENTORY.md", "CONSOLIDATED_CHANGELOG.md", "FULL_E2E_ACCEPTANCE.md", "BACKLOG.md")
+$ownedFiles = @("run.py", "pyproject.toml", "README.md", ".gitignore")
 foreach ($name in $ownedDirectories) {
   $current = Join-Path $TargetRoot $name
   if (Test-Path $current) { Remove-Item -LiteralPath $current -Recurse -Force }

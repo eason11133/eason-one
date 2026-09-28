@@ -7,6 +7,19 @@ EASON ONE 是我設計的一套 Multi-Agent 系統。Founder 提出目標與權�
 > **目前狀態：Active development / Engineering prototype**  
 > Company Core：`0.20.0`
 
+## 實際產品畫面
+
+<table>
+<tr>
+<td width="50%"><img src="docs/assets/headquarters.webp" alt="EASON ONE Headquarters"></td>
+<td width="50%"><img src="docs/assets/project.webp" alt="EASON ONE Project view"></td>
+</tr>
+<tr>
+<td><b>Headquarters</b> — Founder 看到公司目前的 Project、AI Employees、狀態、活動與成本。</td>
+<td><b>Project</b> — 顯示 semantic progress、Project Team、blocker、next step 與 Founder action。</td>
+</tr>
+</table>
+
 ## 30 秒看懂
 
 `Founder → CEO → Project → Work → Execution → Artifact → Verification → Result`

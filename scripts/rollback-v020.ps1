@@ -15,8 +15,7 @@ if (-not $BackupRoot -or -not (Test-Path $BackupRoot -PathType Container)) {
 $ownedDirectories = @("eason_one", "docs", "scripts", "tests", ".github")
 $ownedFiles = @(
   "run.py", "pyproject.toml", "README.md", ".gitignore",
-  "INSTALL_V020_POWERSHELL.txt", "V020_CORE_REBUILD_HANDOFF.md",
-  "CODEX_HANDOFF_HEADQUARTERS.md"
+  "INSTALL_V020_POWERSHELL.txt"
 )
 
 Write-Host "Rolling Eason One back from: $BackupRoot" -ForegroundColor Yellow

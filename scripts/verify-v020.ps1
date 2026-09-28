@@ -42,7 +42,7 @@ try {
   if ($LASTEXITCODE -ne 0) { throw "Runtime-off application smoke failed" }
 
   Write-Host "Engineering diagnostics completed." -ForegroundColor Green
-  Write-Host "IMPORTANT: this is not release acceptance. Run the real Founder Project gate in V020_CORE_REBUILD_HANDOFF.md." -ForegroundColor Yellow
+  Write-Host "IMPORTANT: this is not release acceptance. Run the real Founder Project gate in docs\history\releases\V020_CORE_REBUILD_HANDOFF.md." -ForegroundColor Yellow
 }
 finally {
   Pop-Location

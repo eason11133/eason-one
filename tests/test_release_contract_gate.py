@@ -99,7 +99,7 @@ def test_second_review_modules_are_not_silently_retired_without_current_ports():
 
 
 def test_contract_inventory_document_covers_every_retired_module_and_required_invariant():
-    inventory = (_tests_root().parent / "TEST_CONTRACT_INVENTORY.md").read_text(encoding="utf-8")
+    inventory = (_tests_root().parent / "docs" / "history" / "releases" / "TEST_CONTRACT_INVENTORY.md").read_text(encoding="utf-8")
     for retired in RETIRED_CONTRACT:
         assert f"`{retired}`" in inventory
     for invariant in REQUIRED_CURRENT_INVARIANTS:

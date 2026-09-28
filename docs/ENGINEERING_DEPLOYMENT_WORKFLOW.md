@@ -12,4 +12,4 @@ Release sequence:
 4. The package installer runs only against `D:\school\eason-one`.
 5. The baseline advances only after the user reports the installer success marker.
 
-For S11, run `D:\school\eason-one\PREPARE_EXACT_S10_AND_INSTALL_S11.ps1`. It preserves the exact S11 engineering payload, restores only the eight S10 baseline files, invokes the guarded S11 installer, and creates the S12 engineering worktree only after successful installation.
+For S11, run `D:\school\eason-one\scripts\history\PREPARE_EXACT_S10_AND_INSTALL_S11.ps1`. It preserves the exact S11 engineering payload, restores only the eight S10 baseline files, invokes the guarded S11 installer, and creates the S12 engineering worktree only after successful installation.

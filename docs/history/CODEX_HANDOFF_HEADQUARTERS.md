@@ -6,7 +6,7 @@ Do not resume from older v0.12/v0.18 closure semantics. Read, in order:
 
 1. `docs/V0.20-ENGINEERING-CONSTITUTION.md`
 2. `docs/acceptance/v020_core_rebuild_matrix.md`
-3. `V020_CORE_REBUILD_HANDOFF.md`
+3. `docs/history/releases/V020_CORE_REBUILD_HANDOFF.md`
 4. `eason_one/services/project_contract.py`
 5. `eason_one/services/company_kernel.py`
 6. `eason_one/services/project_outcome.py`

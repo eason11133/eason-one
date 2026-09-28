@@ -12,7 +12,7 @@ $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $backup = Join-Path (Join-Path (Split-Path $TargetRoot -Parent) ".eason-one-backups") "architecture-release-$stamp"
 $dbPath = Join-Path $TargetRoot "instance\eason_one.db"
 $ownedDirectories = @("eason_one", "docs", "scripts", "tests", ".github")
-$ownedFiles = @("run.py", "pyproject.toml", "README.md", ".gitignore", "ARCHITECTURE_REVIEW.md", "BLOCKER_INVENTORY.md", "CONSOLIDATED_CHANGELOG.md", "FULL_E2E_ACCEPTANCE.md", "BACKLOG.md")
+$ownedFiles = @("run.py", "pyproject.toml", "README.md", ".gitignore")
 
 if (-not (Test-Path $dbPath -PathType Leaf)) { throw "Live database not found: $dbPath" }
 Push-Location $SourceRoot

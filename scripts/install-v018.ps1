@@ -13,8 +13,7 @@ $hadTarget = Test-Path $TargetRoot
 $ownedDirectories = @("eason_one", "docs", "scripts", "tests", ".github")
 $ownedFiles = @(
   "run.py", "pyproject.toml", "README.md", ".gitignore",
-  "INSTALL_V018_POWERSHELL.txt", "V018_CORE_CUTOVER_HANDOFF.md",
-  "CODEX_HANDOFF_HEADQUARTERS.md"
+  "INSTALL_V018_POWERSHELL.txt"
 )
 
 function Restore-Backup {
