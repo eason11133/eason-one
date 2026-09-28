@@ -62,7 +62,7 @@ def main() -> int:
             context, composition = build_with_composition(employee, task.project, task)
             lowered = context.casefold()
             assert "retrieved existing eason one evidence" in lowered
-            assert "wildone" in lowered
+            assert "alpha" in lowered
             assert "english" in lowered and "trainer" in lowered
             assert (composition.get("evidence_retrieval") or {}).get("relevant_items", 0) >= 1
 

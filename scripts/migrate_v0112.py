@@ -157,8 +157,8 @@ def _prepare_autonomous_meeting_retry():
     criteria = list(operation_plan.get("completion_criteria") or [])
     if criteria and criteria[-1].strip().endswith("with the"):
         criteria[-1] = (
-            "Final output is one concise recommendation naming either WildOne expansion or the "
-            "English Output Trainer pilot, with the strongest dissenting argument preserved."
+            "Final output is one concise recommendation naming either Project Alpha expansion or the "
+            "Learning Pilot, with the strongest dissenting argument preserved."
         )
         operation_plan["completion_criteria"] = criteria
     plan["operation"] = operation_plan

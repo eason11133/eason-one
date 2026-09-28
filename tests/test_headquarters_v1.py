@@ -11,8 +11,8 @@ def _mission():
     researcher = Employee.query.filter_by(slug="researcher").one()
     critic = Employee.query.filter_by(slug="critic").one()
     project = Project(
-        name="WildOne Delivery",
-        objective="Complete a Founder-ready WildOne delivery slice.",
+        name="Project Alpha Delivery",
+        objective="Complete a Founder-ready Project Alpha delivery slice.",
         status="ACTIVE",
         priority="HIGH",
         environment="LIVE",
@@ -25,7 +25,7 @@ def _mission():
     db.session.add(project)
     db.session.flush()
     operation = Operation(
-        title="WildOne next-stage delivery",
+        title="Project Alpha next-stage delivery",
         objective="Research, implement, review, integrate, and demonstrate the next stage.",
         project_id=project.id,
         proposed_by_employee_id=ceo.id,
@@ -62,7 +62,7 @@ def _mission():
         company_id=1,
         project_id=project.id,
         operation_id=operation.id,
-        title="WildOne integration review",
+        title="Project Alpha integration review",
         purpose="Resolve integration risk.",
         agenda="Confirm evidence, implementation, and review handoff.",
         chair_employee_id=ceo.id,

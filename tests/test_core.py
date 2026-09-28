@@ -85,7 +85,7 @@ def test_ai_run_cannot_approve_proposal(ctx):
     assert p.materialized_knowledge_id is None
 
 def test_ceo_vertical_flow_routes_are_governed(ctx,client):
-    response=client.post("/ceo",data={"request":"Create a Beauty LINE Consultation project"},follow_redirects=True)
+    response=client.post("/ceo",data={"request":"Create a Market Validation project"},follow_redirects=True)
     assert response.status_code==200 and AgentRun.query.filter_by(purpose="CEO_FOUNDER_REQUEST").count()==1
     proposal=Proposal.query.one(); assert Project.query.count()==0 and proposal.status=="PENDING"
     client.post(f"/inbox/{proposal.id}/materialize")

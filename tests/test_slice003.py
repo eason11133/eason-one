@@ -18,7 +18,7 @@ def people():
     return (Employee.query.filter_by(slug="ceo").one(),Employee.query.filter_by(slug="researcher").one(),
       Employee.query.filter_by(slug="research-director").one())
 def ready_task(instruction="work"):
-    ceo,researcher,director=people(); p=create_project("Beauty","Test demand",ceo,status="ACTIVE")
+    ceo,researcher,director=people(); p=create_project("Market","Test demand",ceo,status="ACTIVE")
     t=create_task(p,"Research",instruction,ceo,researcher,director,required_output="Brief",acceptance_criteria="Evidence")
     transition(t,"WORKING"); store_result(t,"Result with evidence"); return p,t
 
@@ -43,14 +43,14 @@ def test_ceo_context_contains_project_summaries_not_raw_knowledge(ctx):
     assert "ALPHA_RAW" not in text and "BETA_RAW" not in text
 
 def test_new_project_creates_governed_proposal(ctx):
-    run,p=founder_request(people()[0],"Create a Beauty consultation project")
+    run,p=founder_request(people()[0],"Create a Market Validation project")
     assert run.parsed_output_json["mode"]=="NEW_PROJECT" and p.status=="PENDING" and Project.query.count()==0
 def test_project_action_proposes_tasks_for_existing_project(ctx):
     p,_=ready_task(); run,proposal=founder_request(people()[0],"Add task and continue project")
     assert run.parsed_output_json["mode"]=="PROJECT_ACTION" and proposal.project_id==p.id
 def test_status_query_creates_no_proposal_or_project(ctx):
     p,_=ready_task(); before=(Proposal.query.count(),Project.query.count())
-    run,proposal=founder_request(people()[0],"How is the Beauty project going?")
+    run,proposal=founder_request(people()[0],"How is the Market project going?")
     assert run.parsed_output_json["mode"]=="STATUS_QUERY" and proposal is None
     assert (Proposal.query.count(),Project.query.count())==before
 def test_invalid_project_id_is_rejected(ctx,monkeypatch):

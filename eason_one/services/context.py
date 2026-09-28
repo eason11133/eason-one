@@ -108,7 +108,7 @@ def relevant_existing_evidence(task, limit=8):
         if not matched:
             continue
         # Prefer records matching multiple task-specific entities, then recency.
-        score = len(matched) + sum(2 for term in matched if term in {"wildone", "english", "trainer", "sqlalchemy", "meeting"})
+        score = len(matched) + sum(2 for term in matched if term in {"alpha", "learning", "pilot", "sqlalchemy", "meeting"})
         scored.append((score, source, content, matched))
     scored.sort(key=lambda item: item[0], reverse=True)
     rows = []

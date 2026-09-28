@@ -378,7 +378,7 @@ def test_hr_execution_uses_same_1536_contract(ctx, monkeypatch):
 
 def test_single_live_project_is_not_implicit_target_context(ctx, monkeypatch):
     ceo=_ceo()
-    project=Project(name="WildOne",objective="Existing direction",
+    project=Project(name="Project Alpha",objective="Existing direction",
       owner_employee_id=ceo.id,environment="LIVE",status="ACTIVE")
     db.session.add(project); db.session.commit()
     contexts=[]
@@ -390,7 +390,7 @@ def test_single_live_project_is_not_implicit_target_context(ctx, monkeypatch):
               "project":None,"project_id":None,"tasks":[],"operation":None}),1,1)
     monkeypatch.setattr("eason_one.services.execution.get_provider",lambda _:Provider())
     founder_request(ceo,"Evaluate a new Learning Evidence business direction.")
-    founder_request(ceo,"How is WildOne going?")
+    founder_request(ceo,"How is Project Alpha going?")
     founder_request(ceo,"Give me company status.")
     assert "Project #"+str(project.id) not in contexts[0]
     assert "Project #"+str(project.id) in contexts[1]

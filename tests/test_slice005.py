@@ -23,7 +23,7 @@ def planned(participants=None, **limits):
     ceo, researcher, critic = people()
     participants = participants or [ceo, researcher, critic]
     return meetings.create(
-        "Beauty pilot review", "Decide the next bounded action",
+        "Market pilot review", "Decide the next bounded action",
         "Positions, evidence, risks, and next action", ceo, participants,
         max_rounds=limits.get("max_rounds", 3),
         token_limit=limits.get("token_limit", 30000),
@@ -54,13 +54,13 @@ def test_project_hygiene_filters_ceo_context_and_preserves_history(ctx):
 def test_existing_project_intake_creates_no_work_or_knowledge(client, ctx):
     ceo, _, _ = people()
     response = client.post("/projects/existing", data={
-        "name": "Committed Beauty Work", "objective": "Launch responsibly",
+        "name": "Committed Market Work", "objective": "Launch responsibly",
         "current_state_summary": "Packaging is selected.", "status": "ACTIVE",
         "priority": "HIGH", "owner_id": ceo.id,
         "known_constraints": "No unverified claims", "next_milestone": "Founder review",
     })
     assert response.status_code == 302
-    project = Project.query.filter_by(name="Committed Beauty Work").one()
+    project = Project.query.filter_by(name="Committed Market Work").one()
     assert (project.environment, project.origin) == ("LIVE", "EXISTING")
     assert Task.query.filter_by(project_id=project.id).count() == 0
     assert KnowledgeItem.query.filter_by(project_id=project.id).count() == 0

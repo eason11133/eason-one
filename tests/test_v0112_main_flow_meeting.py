@@ -14,7 +14,7 @@ from eason_one.services.operation_runtime import runtime_snapshot
 def _operation(title="September Project Priority Decision — Autonomous Meeting Validation"):
     ceo = Employee.query.filter_by(slug="ceo").one()
     project = Project(
-        name=title, objective="Compare WildOne expansion and English Output Trainer",
+        name=title, objective="Compare Project Alpha expansion and Learning Pilot",
         status="ACTIVE", priority="HIGH", environment="LIVE", origin="TEST",
         owner_employee_id=ceo.id,
     )
@@ -30,7 +30,7 @@ def _operation(title="September Project Priority Decision — Autonomous Meeting
             "executive_response": "Use only low-cost approved models. No premium model. Use existing Eason One evidence only.",
             "operation": {
                 "title": title,
-                "objective": "Compare WildOne expansion and English Output Trainer",
+                "objective": "Compare Project Alpha expansion and Learning Pilot",
                 "completion_criteria": ["Use existing evidence only"],
                 "meeting_config": {
                     "participant_employee_ids": [2, 3],
@@ -62,7 +62,7 @@ def test_task_context_retrieves_relevant_persisted_ceo_evidence(ctx):
     task = Task(
         project_id=project.id, operation_id=operation.id,
         title="Existing-evidence comparison",
-        objective="Compare WildOne expansion and the English Output Trainer pilot using existing Eason One evidence.",
+        objective="Compare Project Alpha expansion and the Learning Pilot using existing Eason One evidence.",
         status="ASSIGNED", priority="HIGH", assigned_employee_id=researcher.id,
         reviewer_employee_id=Employee.query.filter_by(slug="research-director").one().id,
         required_output="Operation result", acceptance_criteria="Existing evidence only",
@@ -71,8 +71,8 @@ def test_task_context_retrieves_relevant_persisted_ceo_evidence(ctx):
     db.session.add(WorkMessage(
         message_type="CEO_TO_FOUNDER",
         content=(
-            "WildOne is the stronger 30-day revenue candidate because it builds on an existing "
-            "customer and product. English Output Trainer has greater long-term platform upside "
+            "Project Alpha is the stronger 30-day revenue candidate because it builds on an existing "
+            "customer and product. Learning Pilot has greater long-term platform upside "
             "but less payment evidence and a less bounded MVP."
         ),
     ))
@@ -81,7 +81,7 @@ def test_task_context_retrieves_relevant_persisted_ceo_evidence(ctx):
     context, composition = build_with_composition(researcher, project, task)
 
     assert "RETRIEVED EXISTING EASON ONE EVIDENCE" in context
-    assert "WildOne is the stronger 30-day revenue candidate" in context
+    assert "Project Alpha is the stronger 30-day revenue candidate" in context
     assert composition["evidence_retrieval"]["relevant_items"] >= 1
 
 
@@ -118,7 +118,7 @@ def test_autonomous_meeting_routes_specialists_not_ceo_chair(ctx):
     director = Employee.query.filter_by(slug="research-director").one()
     meeting = create_meeting(
         title="Priority decision", purpose="Reconcile specialist views",
-        agenda="Choose WildOne or English Output Trainer", chair=ceo,
+        agenda="Choose Project Alpha or Learning Pilot", chair=ceo,
         participants=[researcher, director], project=project,
         max_rounds=1, token_limit=6000, real_cost_limit_twd=5,
         profile="ECONOMY", max_speakers_per_round=2, contribution_output_cap=500,
@@ -207,13 +207,13 @@ def test_real_autonomous_meeting_runs_tasks_room_minutes_and_final_report(ctx):
         ),
         "operation": {
             "title": "September Project Priority Decision — Autonomous Meeting E2E",
-            "objective": "Choose WildOne expansion or English Output Trainer using existing evidence.",
+            "objective": "Choose Project Alpha expansion or Learning Pilot using existing evidence.",
             "project_id": None,
             "budget_twd": 20.0,
             "tasks": [
                 {
                     "title": "Existing-evidence comparison",
-                    "objective": "Compare WildOne expansion and English Output Trainer.",
+                    "objective": "Compare Project Alpha expansion and Learning Pilot.",
                     "assignee_employee_id": researcher.id,
                     "reviewer_employee_id": director.id,
                     "acceptance_criteria": ["Produce a concise evidence comparison."],

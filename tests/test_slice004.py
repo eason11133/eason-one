@@ -21,7 +21,7 @@ from eason_one.services.company import get_company,remaining
 def people():
     return Employee.query.filter_by(slug="ceo").one(),Employee.query.filter_by(slug="researcher").one(),Employee.query.filter_by(slug="research-director").one()
 def project_task():
-    ceo,e,r=people(); p=create_project("Beauty","Assess",ceo,status="ACTIVE")
+    ceo,e,r=people(); p=create_project("Market","Assess",ceo,status="ACTIVE")
     return p,create_task(p,"Research","Investigate",ceo,e,r,required_output="Brief",acceptance_criteria="Clear")
 def capture_openai(monkeypatch):
     seen={}
@@ -66,7 +66,7 @@ def test_near_budget_margin_rejects_before_provider(ctx,monkeypatch):
     assert not called and conservative_estimate(e.current_model,"tiny",1)>remaining()
 
 def test_valid_status_query_is_successful_ceo_ui(ctx,client):
-    p,_=project_task(); response=client.post("/ceo",data={"request":"How is the Beauty project going?"},follow_redirects=True)
+    p,_=project_task(); response=client.post("/ceo",data={"request":"How is the Market project going?"},follow_redirects=True)
     run=AgentRun.query.filter_by(purpose="CEO_FOUNDER_REQUEST").one()
     assert run.parsed_output_json["mode"]=="STATUS_QUERY" and b"failed validation" not in response.data
     assert run.parsed_output_json["executive_response"].encode() in client.get("/command").data and Proposal.query.count()==0
